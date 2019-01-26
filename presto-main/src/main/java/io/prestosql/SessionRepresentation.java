@@ -271,11 +271,16 @@ public final class SessionRepresentation
 
     public Session toSession(SessionPropertyManager sessionPropertyManager)
     {
+        return toSession(sessionPropertyManager, Optional.empty());
+    }
+
+    public Session toSession(SessionPropertyManager sessionPropertyManager, Optional<Map<String, String>> connectorTokens)
+    {
         return new Session(
                 new QueryId(queryId),
                 transactionId,
                 clientTransactionSupport,
-                new Identity(user, principal.map(BasicPrincipal::new), roles, Optional.empty()),
+                new Identity(user, principal.map(BasicPrincipal::new), roles, connectorTokens),
                 source,
                 catalog,
                 schema,
