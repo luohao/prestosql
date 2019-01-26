@@ -25,6 +25,7 @@ import io.prestosql.spi.session.ResourceEstimates;
 import io.prestosql.spi.type.TimeZoneKey;
 import io.prestosql.sql.SqlPath;
 import io.prestosql.transaction.TransactionId;
+import org.checkerframework.checker.nullness.Opt;
 
 import java.util.Locale;
 import java.util.Map;
@@ -261,11 +262,16 @@ public final class SessionRepresentation
 
     public Session toSession(SessionPropertyManager sessionPropertyManager)
     {
+        return toSession(sessionPropertyManager, Optional.empty());
+    }
+
+    public Session toSession(SessionPropertyManager sessionPropertyManager, Optional<Map<String, String>> connectorTokens)
+    {
         return new Session(
                 new QueryId(queryId),
                 transactionId,
                 clientTransactionSupport,
-                new Identity(user, principal.map(BasicPrincipal::new), Optional.empty()),
+                new Identity(user, principal.map(BasicPrincipal::new), connectorTokens),
                 source,
                 catalog,
                 schema,
