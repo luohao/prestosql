@@ -27,17 +27,19 @@ public class Identity
     private final String user;
     private final Optional<Principal> principal;
     private final Map<String, SelectedRole> roles;
+    private final Optional<Map<String, String>> connectorTokens;
 
     public Identity(String user, Optional<Principal> principal)
     {
-        this(user, principal, emptyMap());
+        this(user, principal, emptyMap(), Optional.empty());
     }
 
-    public Identity(String user, Optional<Principal> principal, Map<String, SelectedRole> roles)
+    public Identity(String user, Optional<Principal> principal, Map<String, SelectedRole> roles,  Optional<Map<String, String>> connectorTokens)
     {
         this.user = requireNonNull(user, "user is null");
         this.principal = requireNonNull(principal, "principal is null");
         this.roles = unmodifiableMap(requireNonNull(roles, "roles is null"));
+        this.connectorTokens = requireNonNull(connectorTokens, "connectorTokens is null");
     }
 
     public String getUser()
@@ -64,6 +66,11 @@ public class Identity
     {
         requireNonNull(catalog, "catalog is null");
         return new ConnectorIdentity(user, principal, Optional.ofNullable(roles.get(catalog)));
+    }
+
+    public Optional<Map<String, String>> getConnectorTokens()
+    {
+        return connectorTokens;
     }
 
     @Override
