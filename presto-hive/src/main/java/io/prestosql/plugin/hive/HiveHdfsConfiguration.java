@@ -19,6 +19,7 @@ import org.apache.hadoop.conf.Configuration;
 import javax.inject.Inject;
 
 import java.net.URI;
+import java.util.Optional;
 
 import static io.prestosql.plugin.hive.util.ConfigurationUtils.copy;
 import static io.prestosql.plugin.hive.util.ConfigurationUtils.getInitialConfiguration;
@@ -43,17 +44,23 @@ public class HiveHdfsConfiguration
     };
 
     private final HdfsConfigurationUpdater updater;
+    private final Optional<HdfsDynamicConfigurationUpdater> dynamicUpdater;
 
     @Inject
-    public HiveHdfsConfiguration(HdfsConfigurationUpdater updater)
+    public HiveHdfsConfiguration(
+            HdfsConfigurationUpdater updater,
+            Optional<HdfsDynamicConfigurationUpdater> dynamicUpdater)
     {
         this.updater = requireNonNull(updater, "updater is null");
+        this.dynamicUpdater = requireNonNull(dynamicUpdater, "dynamicUpdater is null");
     }
 
     @Override
     public Configuration getConfiguration(HdfsContext context, URI uri)
     {
         // use the same configuration for everything
-        return hadoopConfiguration.get();
+        Configuration configuration = copy(hadoopConfiguration.get());
+        dynamicUpdater.ifPresent(x -> x.updateConfiguration(configuration, context, uri);
+        return configuration;
     }
 }

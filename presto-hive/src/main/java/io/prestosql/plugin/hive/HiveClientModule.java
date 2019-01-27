@@ -20,6 +20,8 @@ import com.google.inject.Scopes;
 import com.google.inject.TypeLiteral;
 import com.google.inject.multibindings.Multibinder;
 import io.airlift.event.client.EventClient;
+import io.prestosql.plugin.hive.gcs.GcsAccessTokenConfigUpdater;
+import io.prestosql.plugin.hive.gcs.GcsDynamicConfigurationUpdater;
 import io.prestosql.plugin.hive.metastore.SemiTransactionalHiveMetastore;
 import io.prestosql.plugin.hive.orc.DwrfPageSourceFactory;
 import io.prestosql.plugin.hive.orc.OrcPageSourceFactory;
@@ -63,6 +65,8 @@ public class HiveClientModule
         binder.bind(CoercionPolicy.class).to(HiveCoercionPolicy.class).in(Scopes.SINGLETON);
 
         binder.bind(HdfsConfigurationUpdater.class).in(Scopes.SINGLETON);
+        binder.bind(HdfsDynamicConfigurationUpdater.class).in(Scopes.SINGLETON);
+        binder.bind(GcsDynamicConfigurationUpdater.class).to(GcsAccessTokenConfigUpdater.class).in(Scopes.SINGLETON);
         binder.bind(HdfsConfiguration.class).to(HiveHdfsConfiguration.class).in(Scopes.SINGLETON);
         binder.bind(HdfsEnvironment.class).in(Scopes.SINGLETON);
         binder.bind(DirectoryLister.class).to(HadoopDirectoryLister.class).in(Scopes.SINGLETON);
