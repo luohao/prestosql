@@ -694,6 +694,7 @@ public class PrestoConnection
                 locale.get(),
                 ImmutableMap.of(),
                 ImmutableMap.copyOf(allProperties),
+                ImmutableMap.of(),
                 ImmutableMap.copyOf(preparedStatements),
                 roles.entrySet().stream()
                         .collect(toImmutableMap(Map.Entry::getKey, entry ->

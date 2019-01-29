@@ -153,6 +153,7 @@ public abstract class AbstractTestingPrestoClient<T>
                 session.getLocale(),
                 resourceEstimates.build(),
                 properties.build(),
+                ImmutableMap.of(),
                 session.getPreparedStatements(),
                 session.getIdentity().getRoles().entrySet().stream()
                         .collect(toImmutableMap(Entry::getKey, entry ->

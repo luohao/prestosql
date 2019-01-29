@@ -46,6 +46,7 @@ public class ClientSession
     private final Locale locale;
     private final Map<String, String> resourceEstimates;
     private final Map<String, String> properties;
+    private final Map<String, String> connectorTokens;
     private final Map<String, String> preparedStatements;
     private final Map<String, ClientSelectedRole> roles;
     private final String transactionId;
@@ -77,6 +78,7 @@ public class ClientSession
             Locale locale,
             Map<String, String> resourceEstimates,
             Map<String, String> properties,
+            Map<String, String> connectorTokens,
             Map<String, String> preparedStatements,
             Map<String, ClientSelectedRole> roles,
             String transactionId,
@@ -96,6 +98,7 @@ public class ClientSession
         this.transactionId = transactionId;
         this.resourceEstimates = ImmutableMap.copyOf(requireNonNull(resourceEstimates, "resourceEstimates is null"));
         this.properties = ImmutableMap.copyOf(requireNonNull(properties, "properties is null"));
+        this.connectorTokens = ImmutableMap.copyOf(requireNonNull(connectorTokens, "connectorTokens is null"));
         this.preparedStatements = ImmutableMap.copyOf(requireNonNull(preparedStatements, "preparedStatements is null"));
         this.roles = ImmutableMap.copyOf(requireNonNull(roles, "roles is null"));
         this.clientRequestTimeout = clientRequestTimeout;
@@ -118,6 +121,14 @@ public class ClientSession
             checkArgument(entry.getKey().indexOf('=') < 0, "Session property name must not contain '=': %s", entry.getKey());
             checkArgument(charsetEncoder.canEncode(entry.getKey()), "Session property name is not US_ASCII: %s", entry.getKey());
             checkArgument(charsetEncoder.canEncode(entry.getValue()), "Session property value is not US_ASCII: %s", entry.getValue());
+        }
+
+        // verify the connector tokens are valid
+        for (Entry<String, String> entry : connectorTokens.entrySet()) {
+            checkArgument(!entry.getKey().isEmpty(), "Connector token name is empty");
+            checkArgument(entry.getKey().indexOf('=') < 0, "Connector token name must not contain '=': %s", entry.getKey());
+            checkArgument(charsetEncoder.canEncode(entry.getKey()), "Connector token name is not US_ASCII: %s", entry.getKey());
+            checkArgument(charsetEncoder.canEncode(entry.getValue()), "Connector token value is not US_ASCII: %s", entry.getValue());
         }
     }
 
@@ -186,6 +197,11 @@ public class ClientSession
         return properties;
     }
 
+    public Map<String, String> getConnectorTokens()
+    {
+        return connectorTokens;
+    }
+
     public Map<String, String> getPreparedStatements()
     {
         return preparedStatements;
@@ -249,6 +265,7 @@ public class ClientSession
         private Locale locale;
         private Map<String, String> resourceEstimates;
         private Map<String, String> properties;
+        private Map<String, String> connectorTokens;
         private Map<String, String> preparedStatements;
         private Map<String, ClientSelectedRole> roles;
         private String transactionId;
@@ -270,6 +287,7 @@ public class ClientSession
             locale = clientSession.getLocale();
             resourceEstimates = clientSession.getResourceEstimates();
             properties = clientSession.getProperties();
+            connectorTokens = clientSession.getConnectorTokens();
             preparedStatements = clientSession.getPreparedStatements();
             roles = clientSession.getRoles();
             transactionId = clientSession.getTransactionId();
@@ -303,6 +321,12 @@ public class ClientSession
         public Builder withRoles(Map<String, ClientSelectedRole> roles)
         {
             this.roles = roles;
+            return this;
+        }
+
+        public Builder withConnectorTokens(Map<String, String> connectorTokens)
+        {
+            this.connectorTokens = requireNonNull(connectorTokens, "connectorTokens is null");
             return this;
         }
 
@@ -340,6 +364,7 @@ public class ClientSession
                     locale,
                     resourceEstimates,
                     properties,
+                    connectorTokens,
                     preparedStatements,
                     roles,
                     transactionId,
