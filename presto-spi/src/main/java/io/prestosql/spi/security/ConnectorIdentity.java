@@ -14,6 +14,7 @@
 package io.prestosql.spi.security;
 
 import java.security.Principal;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -24,12 +25,19 @@ public class ConnectorIdentity
     private final String user;
     private final Optional<Principal> principal;
     private final Optional<SelectedRole> role;
+    private final Optional<Map<String, String>> connectorTokens;
 
     public ConnectorIdentity(String user, Optional<Principal> principal, Optional<SelectedRole> role)
+    {
+        this(user, principal, role, Optional.empty());
+    }
+
+    public ConnectorIdentity(String user, Optional<Principal> principal, Optional<SelectedRole> role, Optional<Map<String, String>> connectorTokens)
     {
         this.user = requireNonNull(user, "user is null");
         this.principal = requireNonNull(principal, "principal is null");
         this.role = requireNonNull(role, "role is null");
+        this.connectorTokens = requireNonNull(connectorTokens, "connectorTokens is null");
     }
 
     public String getUser()
@@ -45,6 +53,11 @@ public class ConnectorIdentity
     public Optional<SelectedRole> getRole()
     {
         return role;
+    }
+
+    public Optional<Map<String, String>> getConnectorTokens()
+    {
+        return connectorTokens;
     }
 
     @Override
