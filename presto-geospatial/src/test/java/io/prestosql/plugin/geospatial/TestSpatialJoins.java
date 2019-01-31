@@ -13,6 +13,7 @@
  */
 package io.prestosql.plugin.geospatial;
 
+import com.google.common.collect.ImmutableList;
 import io.prestosql.Session;
 import io.prestosql.plugin.hive.HdfsConfiguration;
 import io.prestosql.plugin.hive.HdfsConfigurationStaticUpdater;

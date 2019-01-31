@@ -13,6 +13,7 @@
  */
 package io.prestosql.plugin.hive.metastore.glue;
 
+import com.google.common.collect.ImmutableList;
 import io.prestosql.plugin.hive.AbstractTestHiveClientLocal;
 import io.prestosql.plugin.hive.HdfsConfiguration;
 import io.prestosql.plugin.hive.HdfsConfigurationStaticUpdater;

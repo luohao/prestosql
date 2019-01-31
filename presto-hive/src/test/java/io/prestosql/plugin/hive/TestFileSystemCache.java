@@ -13,6 +13,7 @@
  */
 package io.prestosql.plugin.hive;
 
+import com.google.common.collect.ImmutableList;
 import io.prestosql.plugin.hive.authentication.ImpersonatingHdfsAuthentication;
 import io.prestosql.plugin.hive.authentication.SimpleHadoopAuthentication;
 import org.apache.hadoop.conf.Configuration;
