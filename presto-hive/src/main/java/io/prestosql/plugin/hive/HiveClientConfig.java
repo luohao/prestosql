@@ -148,6 +148,10 @@ public class HiveClientConfig
     private boolean s3SelectPushdownEnabled;
     private int s3SelectPushdownMaxConnections = 500;
 
+    private boolean dynamicHdfsConfiguration;
+
+    private boolean useGcsAccessToken;
+
     public int getMaxInitialSplits()
     {
         return maxInitialSplits;
@@ -1188,6 +1192,32 @@ public class HiveClientConfig
     public HiveClientConfig setS3SelectPushdownMaxConnections(int s3SelectPushdownMaxConnections)
     {
         this.s3SelectPushdownMaxConnections = s3SelectPushdownMaxConnections;
+        return this;
+    }
+
+    public boolean isDynamicHdfsConfiguration()
+    {
+        return dynamicHdfsConfiguration;
+    }
+
+    @Config("hive.hdfs.configuration.dynamic")
+    @ConfigDescription("Enable dynamic HDFS configuration")
+    public HiveClientConfig setDynamicHdfsConfiguration(boolean dynamicHdfsConfiguration)
+    {
+        this.dynamicHdfsConfiguration = dynamicHdfsConfiguration;
+        return this;
+    }
+
+    public boolean isUseGcsAccessToken()
+    {
+        return useGcsAccessToken;
+    }
+
+    @Config("hive.gcs.access-token")
+    @ConfigDescription("Use OAuth token to acess Google Cloud Storage")
+    public HiveClientConfig setUseGcsAccessToken(boolean useGcsAccessToken)
+    {
+        this.useGcsAccessToken = useGcsAccessToken;
         return this;
     }
 }

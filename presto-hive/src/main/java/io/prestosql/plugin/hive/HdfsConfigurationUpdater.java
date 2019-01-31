@@ -17,6 +17,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.net.HostAndPort;
 import io.airlift.units.Duration;
+import io.prestosql.plugin.hive.gcs.GcsAccessTokenProvider;
 import io.prestosql.plugin.hive.s3.S3ConfigurationUpdater;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -65,6 +66,7 @@ public class HdfsConfigurationUpdater
     private final S3ConfigurationUpdater s3ConfigurationUpdater;
     private final boolean isHdfsWireEncryptionEnabled;
     private int textMaxLineLength;
+    private final boolean useGcsAccessToken;
 
     @VisibleForTesting
     public HdfsConfigurationUpdater(HiveClientConfig config)
@@ -90,6 +92,7 @@ public class HdfsConfigurationUpdater
         this.fileSystemMaxCacheSize = config.getFileSystemMaxCacheSize();
         this.isHdfsWireEncryptionEnabled = config.isHdfsWireEncryptionEnabled();
         this.textMaxLineLength = toIntExact(config.getTextMaxLineLength().toBytes());
+        this.useGcsAccessToken = config.isUseGcsAccessToken();
 
         this.s3ConfigurationUpdater = requireNonNull(s3ConfigurationUpdater, "s3ConfigurationUpdater is null");
     }
@@ -144,6 +147,8 @@ public class HdfsConfigurationUpdater
 
         configureCompression(config, compressionCodec);
 
+        configureGcs(config, useGcsAccessToken);
+
         s3ConfigurationUpdater.updateConfiguration(config);
     }
 
@@ -171,6 +176,16 @@ public class HdfsConfigurationUpdater
         config.set(ParquetOutputFormat.COMPRESSION, compressionCodec.getParquetCompressionCodec().name());
         // For SequenceFile
         config.set(FileOutputFormat.COMPRESS_TYPE, BLOCK.toString());
+    }
+
+    public static void configureGcs(Configuration config, boolean useGcsAccessToken)
+    {
+        config.set("fs.gs.impl", "com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem");
+        config.set("fs.AbstractFileSystem.gs.impl", "com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem");
+        if (useGcsAccessToken) {
+            config.set("google.cloud.auth.service.account.enable", "false");
+            config.set("fs.gs.auth.access.token.provider.impl", GcsAccessTokenProvider.class.getName());
+        }
     }
 
     public static class NoOpDNSToSwitchMapping
