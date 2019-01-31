@@ -50,5 +50,7 @@ public final class PrestoHeaders
     public static final String PRESTO_PAGE_NEXT_TOKEN = "X-Presto-Page-End-Sequence-Id";
     public static final String PRESTO_BUFFER_COMPLETE = "X-Presto-Buffer-Complete";
 
+    public static final String PRESTO_EXTRA_CREDENTIAL = "X-Presto-Extra-Credential";
+
     private PrestoHeaders() {}
 }
