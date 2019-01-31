@@ -125,6 +125,9 @@ public class ClientOptions
     @Option(name = "--session", title = "session", description = "Session property (property can be used multiple times; format is key=value; use 'SHOW SESSION' to see available properties)")
     public final List<ClientSessionProperty> sessionProperties = new ArrayList<>();
 
+    @Option(name = "--connector-token", title = "connector-token", description = "Connector token (property can be used multiple times; format is key=value)")
+    public final List<ClientConnectorToken> connectorTokens = new ArrayList<>();
+
     @Option(name = "--socks-proxy", title = "socks-proxy", description = "SOCKS proxy to use for server connections")
     public HostAndPort socksProxy;
 
@@ -166,6 +169,7 @@ public class ClientOptions
                 toProperties(sessionProperties),
                 emptyMap(),
                 emptyMap(),
+                toConnectorTokens(connectorTokens),
                 null,
                 clientRequestTimeout);
     }
@@ -210,6 +214,15 @@ public class ClientOptions
         ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
         for (ClientResourceEstimate estimate : estimates) {
             builder.put(estimate.getResource(), estimate.getEstimate());
+        }
+        return builder.build();
+    }
+
+    public static Map<String, String> toConnectorTokens(List<ClientConnectorToken> connectorTokens)
+    {
+        ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
+        for (ClientConnectorToken connectorToken : connectorTokens) {
+            builder.put(connectorToken.getName(), connectorToken.getValue());
         }
         return builder.build();
     }
@@ -364,6 +377,68 @@ public class ClientOptions
             return Objects.equals(this.catalog, other.catalog) &&
                     Objects.equals(this.name, other.name) &&
                     Objects.equals(this.value, other.value);
+        }
+    }
+
+    public static final class ClientConnectorToken
+    {
+        private final String name;
+        private final String value;
+
+        public ClientConnectorToken(String connectorToken)
+        {
+            List<String> nameValue = NAME_VALUE_SPLITTER.splitToList(connectorToken);
+            checkArgument(nameValue.size() == 2, "Connector token: %s", connectorToken);
+
+            this.name = nameValue.get(0);
+            this.value = nameValue.get(1);
+            checkArgument(!name.isEmpty(), "Connector token name is empty");
+            checkArgument(!value.isEmpty(), "Connector token value is empty");
+            checkArgument(PRINTABLE_ASCII.matchesAllOf(name), "Connector token name contains spaces or is not US_ASCII: %s", name);
+            checkArgument(name.indexOf('=') < 0, "Connector token name must not contain '=': %s", name);
+            checkArgument(PRINTABLE_ASCII.matchesAllOf(value), "Connector token value contains space or is not US_ASCII: %s", name);
+        }
+
+        @VisibleForTesting
+        public ClientConnectorToken(String name, String value)
+        {
+            this.name = requireNonNull(name, "name is null");
+            this.value = value;
+        }
+
+        public String getName()
+        {
+            return name;
+        }
+
+        public String getValue()
+        {
+            return value;
+        }
+
+        @Override
+        public String toString()
+        {
+            return name + '=' + value;
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            ClientConnectorToken other = (ClientConnectorToken) o;
+            return Objects.equals(name, other.name) && Objects.equals(value, other.value);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(name, value);
         }
     }
 }

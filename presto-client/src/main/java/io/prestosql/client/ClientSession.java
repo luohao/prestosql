@@ -48,6 +48,7 @@ public class ClientSession
     private final Map<String, String> properties;
     private final Map<String, String> preparedStatements;
     private final Map<String, ClientSelectedRole> roles;
+    private final Map<String, String> connectorTokens;
     private final String transactionId;
     private final Duration clientRequestTimeout;
 
@@ -79,6 +80,7 @@ public class ClientSession
             Map<String, String> properties,
             Map<String, String> preparedStatements,
             Map<String, ClientSelectedRole> roles,
+            Map<String, String> connectorTokens,
             String transactionId,
             Duration clientRequestTimeout)
     {
@@ -98,6 +100,7 @@ public class ClientSession
         this.properties = ImmutableMap.copyOf(requireNonNull(properties, "properties is null"));
         this.preparedStatements = ImmutableMap.copyOf(requireNonNull(preparedStatements, "preparedStatements is null"));
         this.roles = ImmutableMap.copyOf(requireNonNull(roles, "roles is null"));
+        this.connectorTokens = ImmutableMap.copyOf(requireNonNull(connectorTokens, "connectorTokens is null"));
         this.clientRequestTimeout = clientRequestTimeout;
 
         for (String clientTag : clientTags) {
@@ -118,6 +121,14 @@ public class ClientSession
             checkArgument(entry.getKey().indexOf('=') < 0, "Session property name must not contain '=': %s", entry.getKey());
             checkArgument(charsetEncoder.canEncode(entry.getKey()), "Session property name is not US_ASCII: %s", entry.getKey());
             checkArgument(charsetEncoder.canEncode(entry.getValue()), "Session property value is not US_ASCII: %s", entry.getValue());
+        }
+
+        // verify the connector tokens are valid
+        for (Entry<String, String> entry : connectorTokens.entrySet()) {
+            checkArgument(!entry.getKey().isEmpty(), "Connector token name is empty");
+            checkArgument(entry.getKey().indexOf('=') < 0, "Connector token name must not contain '=': %s", entry.getKey());
+            checkArgument(charsetEncoder.canEncode(entry.getKey()), "Connector token name is not US_ASCII: %s", entry.getKey());
+            checkArgument(charsetEncoder.canEncode(entry.getValue()), "Connector token value is not US_ASCII: %s", entry.getValue());
         }
     }
 
@@ -199,6 +210,11 @@ public class ClientSession
         return roles;
     }
 
+    public Map<String, String> getConnectorTokens()
+    {
+        return connectorTokens;
+    }
+
     public String getTransactionId()
     {
         return transactionId;
@@ -251,6 +267,7 @@ public class ClientSession
         private Map<String, String> properties;
         private Map<String, String> preparedStatements;
         private Map<String, ClientSelectedRole> roles;
+        private Map<String, String> connectorTokens;
         private String transactionId;
         private Duration clientRequestTimeout;
 
@@ -272,6 +289,7 @@ public class ClientSession
             properties = clientSession.getProperties();
             preparedStatements = clientSession.getPreparedStatements();
             roles = clientSession.getRoles();
+            connectorTokens = clientSession.getConnectorTokens();
             transactionId = clientSession.getTransactionId();
             clientRequestTimeout = clientSession.getClientRequestTimeout();
         }
@@ -303,6 +321,12 @@ public class ClientSession
         public Builder withRoles(Map<String, ClientSelectedRole> roles)
         {
             this.roles = roles;
+            return this;
+        }
+
+        public Builder withConnectorTokens(Map<String, String> connectorTokens)
+        {
+            this.connectorTokens = requireNonNull(connectorTokens, "connectorTokens is null");
             return this;
         }
 
@@ -342,6 +366,7 @@ public class ClientSession
                     properties,
                     preparedStatements,
                     roles,
+                    connectorTokens,
                     transactionId,
                     clientRequestTimeout);
         }
