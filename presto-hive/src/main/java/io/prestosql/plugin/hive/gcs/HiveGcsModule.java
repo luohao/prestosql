@@ -15,8 +15,11 @@ package io.prestosql.plugin.hive.gcs;
 
 import com.google.inject.Binder;
 import com.google.inject.Scopes;
+import com.google.inject.multibindings.Multibinder;
 import io.airlift.configuration.AbstractConfigurationAwareModule;
+import io.prestosql.plugin.hive.DynamicConfigurationUpdater;
 
+import static com.google.inject.multibindings.Multibinder.newSetBinder;
 import static io.airlift.configuration.ConfigBinder.configBinder;
 
 public class HiveGcsModule
@@ -27,5 +30,10 @@ public class HiveGcsModule
     {
         configBinder(binder).bindConfig(HiveGcsConfig.class);
         binder.bind(GcsStaticConfigurationUpdater.class).to(GcsStaticConfigurationUpdater.class).in(Scopes.SINGLETON);
+
+        if (buildConfigObject(HiveGcsConfig.class).isUseGcsAccessToken()) {
+            Multibinder<DynamicConfigurationUpdater> updaterBinder = newSetBinder(binder, DynamicConfigurationUpdater.class);
+            updaterBinder.addBinding().to(GcsAccessTokenUpdater.class).in(Scopes.SINGLETON);
+        }
     }
 }
