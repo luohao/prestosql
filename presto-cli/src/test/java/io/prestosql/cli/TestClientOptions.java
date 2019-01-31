@@ -99,6 +99,16 @@ public class TestClientOptions
     }
 
     @Test
+    public void testExtraCredentials()
+    {
+        Console console = singleCommand(Console.class).parse("--extra-credential", "test.token.foo=foo", "--extra-credential", "test.token.bar=bar");
+        ClientOptions options = console.clientOptions;
+        assertEquals(options.extraCredentials, ImmutableList.of(
+                new ClientOptions.ClientExtraCredentials("test.token.foo", "foo"),
+                new ClientOptions.ClientExtraCredentials("test.token.bar", "bar")));
+    }
+
+    @Test
     public void testSessionProperties()
     {
         Console console = singleCommand(Console.class).parse("--session", "system=system-value", "--session", "catalog.name=catalog-property");
