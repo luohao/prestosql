@@ -19,6 +19,7 @@ import java.net.URI;
 import java.sql.SQLException;
 import java.util.Properties;
 
+import static io.prestosql.jdbc.ConnectionProperties.EXTRA_CREDENTIALS;
 import static io.prestosql.jdbc.ConnectionProperties.HTTP_PROXY;
 import static io.prestosql.jdbc.ConnectionProperties.SOCKS_PROXY;
 import static io.prestosql.jdbc.ConnectionProperties.SSL_TRUST_STORE_PASSWORD;
@@ -211,6 +212,16 @@ public class TestPrestoDriverUri
         Properties properties = parameters.getProperties();
         assertEquals(properties.getProperty(SSL_TRUST_STORE_PATH.getKey()), "truststore.jks");
         assertEquals(properties.getProperty(SSL_TRUST_STORE_PASSWORD.getKey()), "password");
+    }
+
+    @Test
+    public void testUriWithExtraCredentials()
+            throws SQLException
+    {
+        String extraCredentials = "test.token.foo:bar;test.token.abc:xyz";
+        PrestoDriverUri parameters = createDriverUri("presto://localhost:8080?extraCredentials=" + extraCredentials);
+        Properties properties = parameters.getProperties();
+        assertEquals(properties.getProperty(EXTRA_CREDENTIALS.getKey()), extraCredentials);
     }
 
     private static void assertUriPortScheme(PrestoDriverUri parameters, int port, String scheme)

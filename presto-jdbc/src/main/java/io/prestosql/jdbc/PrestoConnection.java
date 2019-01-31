@@ -14,6 +14,7 @@
 package io.prestosql.jdbc;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.CharMatcher;
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -46,6 +47,7 @@ import java.sql.Statement;
 import java.sql.Struct;
 import java.time.ZoneId;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -61,6 +63,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Strings.nullToEmpty;
 import static com.google.common.collect.ImmutableMap.toImmutableMap;
 import static com.google.common.collect.Maps.fromProperties;
+import static io.prestosql.jdbc.ConnectionProperties.EXTRA_CREDENTIALS;
 import static java.lang.String.format;
 import static java.nio.charset.StandardCharsets.US_ASCII;
 import static java.util.Objects.requireNonNull;
@@ -71,6 +74,8 @@ import static java.util.concurrent.TimeUnit.MINUTES;
 public class PrestoConnection
         implements Connection
 {
+    private static final CharMatcher PRINTABLE_ASCII = CharMatcher.inRange((char) 0x21, (char) 0x7E);
+
     private final AtomicBoolean closed = new AtomicBoolean();
     private final AtomicBoolean autoCommit = new AtomicBoolean(true);
     private final AtomicInteger isolationLevel = new AtomicInteger(TRANSACTION_READ_UNCOMMITTED);
@@ -92,6 +97,7 @@ public class PrestoConnection
     private final Map<String, String> sessionProperties = new ConcurrentHashMap<>();
     private final Map<String, String> preparedStatements = new ConcurrentHashMap<>();
     private final Map<String, SelectedRole> roles = new ConcurrentHashMap<>();
+    private final Map<String, String> extraCredentials = new ConcurrentHashMap<>();
     private final AtomicReference<String> transactionId = new AtomicReference<>();
     private final QueryExecutor queryExecutor;
     private final WarningsManager warningsManager = new WarningsManager();
@@ -106,6 +112,7 @@ public class PrestoConnection
         this.catalog.set(uri.getCatalog());
         this.user = uri.getUser();
         this.applicationNamePrefix = uri.getApplicationNamePrefix();
+        EXTRA_CREDENTIALS.getValue(uri.getProperties()).ifPresent(tokensJson -> this.extraCredentials.putAll(parseExtraCredentials(tokensJson)));
 
         this.queryExecutor = requireNonNull(queryExecutor, "queryExecutor is null");
 
@@ -627,6 +634,25 @@ public class PrestoConnection
         return user;
     }
 
+    // Extra credentials consists of a list of credential name value pairs.
+    // E.g., `jdbc:presto://example.net:8080/?credentials=abc:xyz;foo:bar` will create credentials `abc=xyz` and `foo=bar`
+    Map<String, String> parseExtraCredentials(String extraCredentialString)
+    {
+        Map<String, String> extraCredentials = new HashMap<>();
+        Splitter.on(';').splitToList(extraCredentialString).stream()
+                .forEach(credential -> {
+                    List<String> nameValue = parseSingleCredential(credential);
+                    extraCredentials.put(nameValue.get(0), nameValue.get(1));
+                });
+        return extraCredentials;
+    }
+
+    @VisibleForTesting
+    Map<String, String> getExtraCredentials()
+    {
+        return ImmutableMap.copyOf(extraCredentials);
+    }
+
     ServerInfo getServerInfo()
             throws SQLException
     {
@@ -700,7 +726,7 @@ public class PrestoConnection
                                 new ClientSelectedRole(
                                         ClientSelectedRole.Type.valueOf(entry.getValue().getType().toString()),
                                         entry.getValue().getRole()))),
-                ImmutableMap.of(),
+                extraCredentials,
                 transactionId.get(),
                 timeout);
 
@@ -773,5 +799,20 @@ public class PrestoConnection
                 return "SERIALIZABLE";
         }
         throw new SQLException("Invalid transaction isolation level: " + level);
+    }
+
+    private static List<String> parseSingleCredential(String credential)
+    {
+        List<String> nameValue = Splitter.on(':').limit(2).splitToList(credential);
+        checkArgument(nameValue.size() == 2, "Malformed credential: %s", credential);
+        String name = nameValue.get(0);
+        String value = nameValue.get(1);
+        checkArgument(!name.isEmpty(), "Credential name is empty");
+        checkArgument(!value.isEmpty(), "Credential value is empty");
+
+        checkArgument(PRINTABLE_ASCII.matchesAllOf(name), "Credential name contains spaces or is not US_ASCII: %s", name);
+        checkArgument(name.indexOf(':') < 0, "Credential name must not contain ':': %s", name);
+        checkArgument(PRINTABLE_ASCII.matchesAllOf(value), "Credential value contains space or is not US_ASCII: %s", name);
+        return nameValue;
     }
 }
