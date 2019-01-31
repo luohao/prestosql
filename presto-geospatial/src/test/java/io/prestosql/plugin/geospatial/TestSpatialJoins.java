@@ -77,7 +77,7 @@ public class TestSpatialJoins
         File baseDir = queryRunner.getCoordinator().getBaseDataDir().resolve("hive_data").toFile();
 
         HiveClientConfig hiveClientConfig = new HiveClientConfig();
-        HdfsConfiguration hdfsConfiguration = new HiveHdfsConfiguration(new HdfsConfigurationStaticUpdater(hiveClientConfig));
+        HdfsConfiguration hdfsConfiguration = new HiveHdfsConfiguration(new HdfsConfigurationStaticUpdater(hiveClientConfig), ImmutableList.of());
         HdfsEnvironment hdfsEnvironment = new HdfsEnvironment(hdfsConfiguration, hiveClientConfig, new NoHdfsAuthentication());
 
         FileHiveMetastore metastore = new FileHiveMetastore(hdfsEnvironment, baseDir.toURI().toString(), "test");

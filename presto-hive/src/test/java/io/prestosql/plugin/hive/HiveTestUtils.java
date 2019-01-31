@@ -121,7 +121,7 @@ public final class HiveTestUtils
 
     public static HdfsEnvironment createTestHdfsEnvironment(HiveClientConfig config)
     {
-        HdfsConfiguration hdfsConfig = new HiveHdfsConfiguration(new HdfsConfigurationStaticUpdater(config, new PrestoS3ConfigurationUpdater(new HiveS3Config())));
+        HdfsConfiguration hdfsConfig = new HiveHdfsConfiguration(new HdfsConfigurationStaticUpdater(config, new PrestoS3ConfigurationUpdater(new HiveS3Config())), ImmutableList.of());
         return new HdfsEnvironment(hdfsConfig, config, new NoHdfsAuthentication());
     }
 
