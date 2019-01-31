@@ -50,7 +50,7 @@ import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_DOMAIN_SOCKET_PATH_KEY;
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.COMPRESSRESULT;
 import static org.apache.hadoop.io.SequenceFile.CompressionType.BLOCK;
 
-public class HdfsConfigurationUpdater
+public class HdfsConfigurationStaticUpdater
 {
     private final HostAndPort socksProxy;
     private final Duration ipcPingInterval;
@@ -66,13 +66,13 @@ public class HdfsConfigurationUpdater
     private int textMaxLineLength;
 
     @VisibleForTesting
-    public HdfsConfigurationUpdater(HiveClientConfig config)
+    public HdfsConfigurationStaticUpdater(HiveClientConfig config)
     {
         this(config, ignored -> {});
     }
 
     @Inject
-    public HdfsConfigurationUpdater(HiveClientConfig config, S3ConfigurationUpdater s3ConfigurationUpdater)
+    public HdfsConfigurationStaticUpdater(HiveClientConfig config, S3ConfigurationUpdater s3ConfigurationUpdater)
     {
         requireNonNull(config, "config is null");
         checkArgument(config.getDfsTimeout().toMillis() >= 1, "dfsTimeout must be at least 1 ms");

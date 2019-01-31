@@ -42,10 +42,10 @@ public class HiveHdfsConfiguration
         }
     };
 
-    private final HdfsConfigurationUpdater updater;
+    private final HdfsConfigurationStaticUpdater updater;
 
     @Inject
-    public HiveHdfsConfiguration(HdfsConfigurationUpdater updater)
+    public HiveHdfsConfiguration(HdfsConfigurationStaticUpdater updater)
     {
         this.updater = requireNonNull(updater, "updater is null");
     }

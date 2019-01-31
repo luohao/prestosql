@@ -94,7 +94,7 @@ public final class HiveQueryRunner
             File baseDir = queryRunner.getCoordinator().getBaseDataDir().resolve("hive_data").toFile();
 
             HiveClientConfig hiveClientConfig = new HiveClientConfig();
-            HdfsConfiguration hdfsConfiguration = new HiveHdfsConfiguration(new HdfsConfigurationUpdater(hiveClientConfig));
+            HdfsConfiguration hdfsConfiguration = new HiveHdfsConfiguration(new HdfsConfigurationStaticUpdater(hiveClientConfig));
             HdfsEnvironment hdfsEnvironment = new HdfsEnvironment(hdfsConfiguration, hiveClientConfig, new NoHdfsAuthentication());
 
             FileHiveMetastore metastore = new FileHiveMetastore(hdfsEnvironment, baseDir.toURI().toString(), "test");

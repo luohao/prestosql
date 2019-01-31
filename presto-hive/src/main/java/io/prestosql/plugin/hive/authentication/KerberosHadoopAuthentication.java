@@ -13,7 +13,7 @@
  */
 package io.prestosql.plugin.hive.authentication;
 
-import io.prestosql.plugin.hive.HdfsConfigurationUpdater;
+import io.prestosql.plugin.hive.HdfsConfigurationStaticUpdater;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.security.UserGroupInformation;
 
@@ -28,7 +28,7 @@ public class KerberosHadoopAuthentication
 {
     private final KerberosAuthentication kerberosAuthentication;
 
-    public static KerberosHadoopAuthentication createKerberosHadoopAuthentication(KerberosAuthentication kerberosAuthentication, HdfsConfigurationUpdater updater)
+    public static KerberosHadoopAuthentication createKerberosHadoopAuthentication(KerberosAuthentication kerberosAuthentication, HdfsConfigurationStaticUpdater updater)
     {
         Configuration configuration = getInitialConfiguration();
         updater.updateConfiguration(configuration);

@@ -15,7 +15,7 @@ package io.prestosql.plugin.geospatial;
 
 import io.prestosql.Session;
 import io.prestosql.plugin.hive.HdfsConfiguration;
-import io.prestosql.plugin.hive.HdfsConfigurationUpdater;
+import io.prestosql.plugin.hive.HdfsConfigurationStaticUpdater;
 import io.prestosql.plugin.hive.HdfsEnvironment;
 import io.prestosql.plugin.hive.HiveClientConfig;
 import io.prestosql.plugin.hive.HiveHdfsConfiguration;
@@ -77,7 +77,7 @@ public class TestSpatialJoins
         File baseDir = queryRunner.getCoordinator().getBaseDataDir().resolve("hive_data").toFile();
 
         HiveClientConfig hiveClientConfig = new HiveClientConfig();
-        HdfsConfiguration hdfsConfiguration = new HiveHdfsConfiguration(new HdfsConfigurationUpdater(hiveClientConfig));
+        HdfsConfiguration hdfsConfiguration = new HiveHdfsConfiguration(new HdfsConfigurationStaticUpdater(hiveClientConfig));
         HdfsEnvironment hdfsEnvironment = new HdfsEnvironment(hdfsConfiguration, hiveClientConfig, new NoHdfsAuthentication());
 
         FileHiveMetastore metastore = new FileHiveMetastore(hdfsEnvironment, baseDir.toURI().toString(), "test");
