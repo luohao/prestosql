@@ -104,4 +104,7 @@ Name                              Description
 ``KerberosConfigPath``            Kerberos configuration file.
 ``KerberosKeytabPath``            Kerberos keytab file.
 ``KerberosCredentialCachePath``   Kerberos credential cache.
+``extraCredentials``              Extra credentials for authentication and authorization. The
+                                  extraCredentials is a list of key-value pairs. Example:
+                                  ``foo:bar;abc:xyz`` will create credentials ``{ abc=xyz, foo=bar}``
 ================================= =======================================================================

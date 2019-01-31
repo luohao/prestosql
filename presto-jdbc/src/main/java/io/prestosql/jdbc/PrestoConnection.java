@@ -61,6 +61,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Strings.nullToEmpty;
 import static com.google.common.collect.ImmutableMap.toImmutableMap;
 import static com.google.common.collect.Maps.fromProperties;
+import static io.prestosql.jdbc.ConnectionProperties.EXTRA_CREDENTIALS;
 import static java.lang.String.format;
 import static java.nio.charset.StandardCharsets.US_ASCII;
 import static java.util.Objects.requireNonNull;
@@ -87,6 +88,7 @@ public class PrestoConnection
     private final URI jdbcUri;
     private final URI httpUri;
     private final String user;
+    private final Map<String, String> extraCredentials;
     private final Optional<String> applicationNamePrefix;
     private final Map<String, String> clientInfo = new ConcurrentHashMap<>();
     private final Map<String, String> sessionProperties = new ConcurrentHashMap<>();
@@ -106,7 +108,7 @@ public class PrestoConnection
         this.catalog.set(uri.getCatalog());
         this.user = uri.getUser();
         this.applicationNamePrefix = uri.getApplicationNamePrefix();
-
+        this.extraCredentials = EXTRA_CREDENTIALS.getValue(uri.getProperties()).orElse(ImmutableMap.of());
         this.queryExecutor = requireNonNull(queryExecutor, "queryExecutor is null");
 
         timeZoneId.set(ZoneId.systemDefault());
@@ -627,6 +629,12 @@ public class PrestoConnection
         return user;
     }
 
+    @VisibleForTesting
+    Map<String, String> getExtraCredentials()
+    {
+        return ImmutableMap.copyOf(extraCredentials);
+    }
+
     ServerInfo getServerInfo()
             throws SQLException
     {
@@ -700,7 +708,7 @@ public class PrestoConnection
                                 new ClientSelectedRole(
                                         ClientSelectedRole.Type.valueOf(entry.getValue().getType().toString()),
                                         entry.getValue().getRole()))),
-                ImmutableMap.of(),
+                extraCredentials,
                 transactionId.get(),
                 timeout);
 
