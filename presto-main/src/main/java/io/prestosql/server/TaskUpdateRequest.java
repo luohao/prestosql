@@ -22,6 +22,7 @@ import io.prestosql.TaskSource;
 import io.prestosql.sql.planner.PlanFragment;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
 
@@ -35,6 +36,7 @@ public class TaskUpdateRequest
     private final List<TaskSource> sources;
     private final OutputBuffers outputIds;
     private final OptionalInt totalPartitions;
+    private final Map<String, String> credentials;
 
     @JsonCreator
     public TaskUpdateRequest(
@@ -42,19 +44,22 @@ public class TaskUpdateRequest
             @JsonProperty("fragment") Optional<PlanFragment> fragment,
             @JsonProperty("sources") List<TaskSource> sources,
             @JsonProperty("outputIds") OutputBuffers outputIds,
-            @JsonProperty("totalPartitions") OptionalInt totalPartitions)
+            @JsonProperty("totalPartitions") OptionalInt totalPartitions,
+            @JsonProperty("credentials") Map<String, String> credentials)
     {
         requireNonNull(session, "session is null");
         requireNonNull(fragment, "fragment is null");
         requireNonNull(sources, "sources is null");
         requireNonNull(outputIds, "outputIds is null");
         requireNonNull(totalPartitions, "totalPartitions is null");
+        requireNonNull(credentials, "credentials is null");
 
         this.session = session;
         this.fragment = fragment;
         this.sources = ImmutableList.copyOf(sources);
         this.outputIds = outputIds;
         this.totalPartitions = totalPartitions;
+        this.credentials = credentials;
     }
 
     @JsonProperty
@@ -85,6 +90,12 @@ public class TaskUpdateRequest
     public OptionalInt getTotalPartitions()
     {
         return totalPartitions;
+    }
+
+    @JsonProperty
+    public Map<String, String> getCredentials()
+    {
+        return credentials;
     }
 
     @Override

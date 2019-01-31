@@ -507,7 +507,8 @@ public final class HttpRemoteTask
                 fragment,
                 sources,
                 outputBuffers.get(),
-                totalPartitions);
+                totalPartitions,
+                session.getIdentity().getCredentials());
         byte[] taskUpdateRequestJson = taskUpdateRequestCodec.toJsonBytes(updateRequest);
         if (fragment.isPresent()) {
             stats.updateWithPlanBytes(taskUpdateRequestJson.length);
