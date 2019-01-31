@@ -18,6 +18,7 @@ import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Ints;
+import io.airlift.json.JsonCodec;
 import io.airlift.units.Duration;
 import io.prestosql.client.ClientSelectedRole;
 import io.prestosql.client.ClientSession;
@@ -45,6 +46,7 @@ import java.sql.Savepoint;
 import java.sql.Statement;
 import java.sql.Struct;
 import java.time.ZoneId;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -61,6 +63,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Strings.nullToEmpty;
 import static com.google.common.collect.ImmutableMap.toImmutableMap;
 import static com.google.common.collect.Maps.fromProperties;
+import static io.prestosql.jdbc.ConnectionProperties.CONNECTOR_TOKEN_JSON;
 import static java.lang.String.format;
 import static java.nio.charset.StandardCharsets.US_ASCII;
 import static java.util.Objects.requireNonNull;
@@ -71,6 +74,8 @@ import static java.util.concurrent.TimeUnit.MINUTES;
 public class PrestoConnection
         implements Connection
 {
+    private static final JsonCodec<Map> MAP_JSON_CODEC = JsonCodec.jsonCodec(Map.class);
+
     private final AtomicBoolean closed = new AtomicBoolean();
     private final AtomicBoolean autoCommit = new AtomicBoolean(true);
     private final AtomicInteger isolationLevel = new AtomicInteger(TRANSACTION_READ_UNCOMMITTED);
@@ -92,6 +97,7 @@ public class PrestoConnection
     private final Map<String, String> sessionProperties = new ConcurrentHashMap<>();
     private final Map<String, String> preparedStatements = new ConcurrentHashMap<>();
     private final Map<String, SelectedRole> roles = new ConcurrentHashMap<>();
+    private final Map<String, String> connectorTokens = new ConcurrentHashMap<>();
     private final AtomicReference<String> transactionId = new AtomicReference<>();
     private final QueryExecutor queryExecutor;
     private final WarningsManager warningsManager = new WarningsManager();
@@ -106,6 +112,7 @@ public class PrestoConnection
         this.catalog.set(uri.getCatalog());
         this.user = uri.getUser();
         this.applicationNamePrefix = uri.getApplicationNamePrefix();
+        CONNECTOR_TOKEN_JSON.getValue(uri.getProperties()).ifPresent(tokensJson -> this.connectorTokens.putAll(parseConnectorTokens(tokensJson)));
 
         this.queryExecutor = requireNonNull(queryExecutor, "queryExecutor is null");
 
@@ -627,6 +634,17 @@ public class PrestoConnection
         return user;
     }
 
+    Map<String, String> parseConnectorTokens(String connectorTokensJson)
+    {
+        return MAP_JSON_CODEC.fromJson(Base64.getDecoder().decode(connectorTokensJson));
+    }
+
+    @VisibleForTesting
+    Map<String, String> getConnectorTokens()
+    {
+        return ImmutableMap.copyOf(connectorTokens);
+    }
+
     ServerInfo getServerInfo()
             throws SQLException
     {
@@ -700,7 +718,7 @@ public class PrestoConnection
                                 new ClientSelectedRole(
                                         ClientSelectedRole.Type.valueOf(entry.getValue().getType().toString()),
                                         entry.getValue().getRole()))),
-                ImmutableMap.of(),
+                connectorTokens,
                 transactionId.get(),
                 timeout);
 

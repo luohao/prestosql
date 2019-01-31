@@ -16,6 +16,7 @@ package io.prestosql.jdbc;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import io.airlift.json.JsonCodec;
 import io.airlift.log.Logging;
 import io.prestosql.plugin.hive.HiveHadoop2Plugin;
 import io.prestosql.server.testing.TestingPrestoServer;
@@ -29,11 +30,14 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Base64;
+import java.util.Map;
 import java.util.Set;
 
 import static io.prestosql.jdbc.TestPrestoDriver.closeQuietly;
 import static java.lang.String.format;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertTrue;
 
@@ -192,6 +196,19 @@ public class TestJdbcConnection
             connection.setClientInfo("ApplicationName", "testing");
             assertConnectionSource(connection, "fruit:testing");
         }
+    }
+
+    @Test
+    public void testConnectorTokens()
+            throws SQLException
+    {
+        Map<String, String> tokens = ImmutableMap.of("test.token.foo", "foo", "test.token.bar", "bar");
+        String url = "jdbc:presto://localhost:8080?connectorTokensJson=" + Base64.getEncoder().encodeToString(JsonCodec.jsonCodec(Map.class).toJsonBytes(tokens));
+        Connection connection = DriverManager.getConnection(url, "admin", null);
+
+        assertTrue(connection instanceof PrestoConnection);
+        PrestoConnection prestoConnection = (PrestoConnection) connection;
+        assertEquals(prestoConnection.getConnectorTokens(), tokens);
     }
 
     private Connection createConnection()

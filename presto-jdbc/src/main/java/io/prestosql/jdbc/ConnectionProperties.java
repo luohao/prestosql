@@ -48,6 +48,7 @@ final class ConnectionProperties
     public static final ConnectionProperty<File> KERBEROS_KEYTAB_PATH = new KerberosKeytabPath();
     public static final ConnectionProperty<File> KERBEROS_CREDENTIAL_CACHE_PATH = new KerberosCredentialCachePath();
     public static final ConnectionProperty<String> ACCESS_TOKEN = new AccessToken();
+    public static final ConnectionProperty<String> CONNECTOR_TOKEN_JSON = new ConnectorTokensJson();
 
     private static final Set<ConnectionProperty<?>> ALL_PROPERTIES = ImmutableSet.<ConnectionProperty<?>>builder()
             .add(USER)
@@ -67,6 +68,7 @@ final class ConnectionProperties
             .add(KERBEROS_KEYTAB_PATH)
             .add(KERBEROS_CREDENTIAL_CACHE_PATH)
             .add(ACCESS_TOKEN)
+            .add(CONNECTOR_TOKEN_JSON)
             .build();
 
     private static final Map<String, ConnectionProperty<?>> KEY_LOOKUP = unmodifiableMap(ALL_PROPERTIES.stream()
@@ -272,6 +274,15 @@ final class ConnectionProperties
         public AccessToken()
         {
             super("accessToken", NOT_REQUIRED, ALLOWED, STRING_CONVERTER);
+        }
+    }
+
+    private static class ConnectorTokensJson
+            extends AbstractConnectionProperty<String>
+    {
+        public ConnectorTokensJson()
+        {
+            super("connectorTokensJson", NOT_REQUIRED, ALLOWED, STRING_CONVERTER);
         }
     }
 }

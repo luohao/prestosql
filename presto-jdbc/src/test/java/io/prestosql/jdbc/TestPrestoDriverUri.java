@@ -17,8 +17,10 @@ import org.testng.annotations.Test;
 
 import java.net.URI;
 import java.sql.SQLException;
+import java.util.Base64;
 import java.util.Properties;
 
+import static io.prestosql.jdbc.ConnectionProperties.CONNECTOR_TOKEN_JSON;
 import static io.prestosql.jdbc.ConnectionProperties.HTTP_PROXY;
 import static io.prestosql.jdbc.ConnectionProperties.SOCKS_PROXY;
 import static io.prestosql.jdbc.ConnectionProperties.SSL_TRUST_STORE_PASSWORD;
@@ -211,6 +213,16 @@ public class TestPrestoDriverUri
         Properties properties = parameters.getProperties();
         assertEquals(properties.getProperty(SSL_TRUST_STORE_PATH.getKey()), "truststore.jks");
         assertEquals(properties.getProperty(SSL_TRUST_STORE_PASSWORD.getKey()), "password");
+    }
+
+    @Test
+    public void testUriWithConnectorTokens()
+            throws SQLException
+    {
+        String tokensJsonBase64String = Base64.getEncoder().encodeToString("{\"test.token.foo\":\"foo\", \"test.token.bar\":\"bar\"}".getBytes());
+        PrestoDriverUri parameters = createDriverUri("presto://localhost:8080?connectorTokensJson=" + tokensJsonBase64String);
+        Properties properties = parameters.getProperties();
+        assertEquals(properties.getProperty(CONNECTOR_TOKEN_JSON.getKey()), tokensJsonBase64String);
     }
 
     private static void assertUriPortScheme(PrestoDriverUri parameters, int port, String scheme)
