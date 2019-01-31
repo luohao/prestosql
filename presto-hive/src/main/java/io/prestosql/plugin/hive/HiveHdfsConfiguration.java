@@ -19,6 +19,7 @@ import org.apache.hadoop.conf.Configuration;
 import javax.inject.Inject;
 
 import java.net.URI;
+import java.util.List;
 
 import static io.prestosql.plugin.hive.util.ConfigurationUtils.copy;
 import static io.prestosql.plugin.hive.util.ConfigurationUtils.getInitialConfiguration;
@@ -37,23 +38,27 @@ public class HiveHdfsConfiguration
         {
             Configuration configuration = new Configuration(false);
             copy(INITIAL_CONFIGURATION, configuration);
-            updater.updateConfiguration(configuration);
+            staticUpdater.updateConfiguration(configuration);
             return configuration;
         }
     };
 
-    private final HdfsConfigurationStaticUpdater updater;
+    private final HdfsConfigurationStaticUpdater staticUpdater;
+    private final List<DynamicConfigurationUpdater> dynamicConfigurationUpdaters;
 
     @Inject
-    public HiveHdfsConfiguration(HdfsConfigurationStaticUpdater updater)
+    public HiveHdfsConfiguration(HdfsConfigurationStaticUpdater staticUpdater, List<DynamicConfigurationUpdater> dynamicUpdater)
     {
-        this.updater = requireNonNull(updater, "updater is null");
+        this.staticUpdater = requireNonNull(staticUpdater, "staticUpdater is null");
+        this.dynamicConfigurationUpdaters = requireNonNull(dynamicUpdater, "dynamicUpdater is null");
     }
 
     @Override
     public Configuration getConfiguration(HdfsContext context, URI uri)
     {
-        // use the same configuration for everything
-        return hadoopConfiguration.get();
+        // TODO(hluo): if the copy introduce performance regression, I can make the dynamic updater configurable
+        Configuration config = copy(hadoopConfiguration.get());
+        dynamicConfigurationUpdaters.stream().forEach(updater -> updater.updateConfiguration(config, context, uri));
+        return config;
     }
 }
