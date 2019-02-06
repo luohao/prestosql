@@ -21,5 +21,5 @@ import static io.prestosql.plugin.hive.HdfsEnvironment.HdfsContext;
 
 public interface DynamicConfigurationProvider
 {
-    Configuration updateConfiguration(Configuration configuration, HdfsContext context, URI uri);
+    void updateConfiguration(Configuration configuration, HdfsContext context, URI uri);
 }
