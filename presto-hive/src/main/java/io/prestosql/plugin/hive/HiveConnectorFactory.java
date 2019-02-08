@@ -13,9 +13,12 @@
  */
 package io.prestosql.plugin.hive;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.inject.Injector;
 import com.google.inject.Key;
+import com.google.inject.Module;
 import com.google.inject.TypeLiteral;
 import io.airlift.bootstrap.Bootstrap;
 import io.airlift.bootstrap.LifeCycleManager;
@@ -52,6 +55,7 @@ import org.weakref.jmx.guice.MBeanModule;
 import javax.management.MBeanServer;
 
 import java.lang.management.ManagementFactory;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -67,13 +71,21 @@ public class HiveConnectorFactory
     private final String name;
     private final ClassLoader classLoader;
     private final Optional<ExtendedHiveMetastore> metastore;
+    private final List<Module> extraModules;
 
     public HiveConnectorFactory(String name, ClassLoader classLoader, Optional<ExtendedHiveMetastore> metastore)
+    {
+        this(name, classLoader, metastore, ImmutableList.of());
+    }
+
+    @VisibleForTesting
+    public HiveConnectorFactory(String name, ClassLoader classLoader, Optional<ExtendedHiveMetastore> metastore, List<Module> extraModules)
     {
         checkArgument(!isNullOrEmpty(name), "name is null or empty");
         this.name = name;
         this.classLoader = requireNonNull(classLoader, "classLoader is null");
         this.metastore = requireNonNull(metastore, "metastore is null");
+        this.extraModules = extraModules;
     }
 
     @Override
@@ -94,19 +106,19 @@ public class HiveConnectorFactory
         requireNonNull(config, "config is null");
 
         try (ThreadContextClassLoader ignored = new ThreadContextClassLoader(classLoader)) {
-            Bootstrap app = new Bootstrap(
-                    new EventModule(),
-                    new MBeanModule(),
-                    new ConnectorObjectNameGeneratorModule(catalogName),
-                    new JsonModule(),
-                    new HiveClientModule(catalogName),
-                    new HiveS3Module(),
-                    new HiveGcsModule(),
-                    new HiveMetastoreModule(metastore),
-                    new HiveSecurityModule(),
-                    new HiveAuthenticationModule(),
-                    new HiveProcedureModule(),
-                    binder -> {
+            Bootstrap app = new Bootstrap(ImmutableList.<Module>builder()
+                    .add(new EventModule())
+                    .add(new MBeanModule())
+                    .add(new ConnectorObjectNameGeneratorModule(catalogName))
+                    .add(new JsonModule())
+                    .add(new HiveClientModule(catalogName))
+                    .add(new HiveS3Module())
+                    .add(new HiveGcsModule())
+                    .add(new HiveMetastoreModule(metastore))
+                    .add(new HiveSecurityModule())
+                    .add(new HiveAuthenticationModule())
+                    .add(new HiveProcedureModule())
+                    .add(binder -> {
                         MBeanServer platformMBeanServer = ManagementFactory.getPlatformMBeanServer();
                         binder.bind(MBeanServer.class).toInstance(new RebindSafeMBeanServer(platformMBeanServer));
                         binder.bind(NodeVersion.class).toInstance(new NodeVersion(context.getNodeManager().getCurrentNode().getVersion()));
@@ -114,7 +126,9 @@ public class HiveConnectorFactory
                         binder.bind(TypeManager.class).toInstance(context.getTypeManager());
                         binder.bind(PageIndexerFactory.class).toInstance(context.getPageIndexerFactory());
                         binder.bind(PageSorter.class).toInstance(context.getPageSorter());
-                    });
+                    })
+                    .addAll(extraModules)
+                    .build());
 
             Injector injector = app
                     .strictConfig()

@@ -13,11 +13,14 @@
  */
 package io.prestosql.plugin.hive;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+import com.google.inject.Module;
 import io.prestosql.plugin.hive.metastore.ExtendedHiveMetastore;
 import io.prestosql.spi.Plugin;
 import io.prestosql.spi.connector.ConnectorFactory;
 
+import java.util.List;
 import java.util.Optional;
 
 import static com.google.common.base.Preconditions.checkArgument;
@@ -29,23 +32,31 @@ public class HivePlugin
 {
     private final String name;
     private final Optional<ExtendedHiveMetastore> metastore;
+    private final List<Module> extraModules;
 
     public HivePlugin(String name)
     {
-        this(name, Optional.empty());
+        this(name, Optional.empty(), ImmutableList.of());
     }
 
     public HivePlugin(String name, Optional<ExtendedHiveMetastore> metastore)
     {
+        this(name, metastore, ImmutableList.of());
+    }
+
+    @VisibleForTesting
+    public HivePlugin(String name, Optional<ExtendedHiveMetastore> metastore, List<Module> extraModules)
+    {
         checkArgument(!isNullOrEmpty(name), "name is null or empty");
         this.name = name;
         this.metastore = requireNonNull(metastore, "metastore is null");
+        this.extraModules = requireNonNull(extraModules, "extraModules is null");
     }
 
     @Override
     public Iterable<ConnectorFactory> getConnectorFactories()
     {
-        return ImmutableList.of(new HiveConnectorFactory(name, getClassLoader(), metastore));
+        return ImmutableList.of(new HiveConnectorFactory(name, getClassLoader(), metastore, extraModules));
     }
 
     private static ClassLoader getClassLoader()

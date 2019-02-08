@@ -16,6 +16,7 @@ package io.prestosql.plugin.hive;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.inject.Module;
 import io.airlift.log.Logger;
 import io.airlift.log.Logging;
 import io.airlift.tpch.TpchTable;
@@ -34,6 +35,7 @@ import org.intellij.lang.annotations.Language;
 import org.joda.time.DateTimeZone;
 
 import java.io.File;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -83,10 +85,33 @@ public final class HiveQueryRunner
     public static DistributedQueryRunner createQueryRunner(Iterable<TpchTable<?>> tables, Map<String, String> extraProperties, String security, Map<String, String> extraHiveProperties)
             throws Exception
     {
+        return createQueryRunner(tables, extraProperties, security, extraHiveProperties, ImmutableMap.of());
+    }
+
+    public static DistributedQueryRunner createQueryRunner(
+            Iterable<TpchTable<?>> tables,
+            Map<String, String> extraProperties,
+            String security,
+            Map<String, String> extraHiveProperties,
+            Map<String, String> extraCredentials)
+            throws Exception
+    {
+        return createQueryRunner(tables, extraProperties, security, extraHiveProperties, extraCredentials, ImmutableList.of());
+    }
+
+    public static DistributedQueryRunner createQueryRunner(
+            Iterable<TpchTable<?>> tables,
+            Map<String, String> extraProperties,
+            String security,
+            Map<String, String> extraHiveProperties,
+            Map<String, String> extraCredentials,
+            List<Module> extraModules)
+            throws Exception
+    {
         assertEquals(DateTimeZone.getDefault(), TIME_ZONE, "Timezone not configured correctly. Add -Duser.timezone=America/Bahia_Banderas to your JVM arguments");
         setupLogging();
 
-        DistributedQueryRunner queryRunner = new DistributedQueryRunner(createSession(Optional.of(new SelectedRole(ROLE, Optional.of("admin")))), 4, extraProperties);
+        DistributedQueryRunner queryRunner = new DistributedQueryRunner(createSession(Optional.of(new SelectedRole(ROLE, Optional.of("admin"))), extraCredentials), 4, extraProperties);
 
         try {
             queryRunner.installPlugin(new TpchPlugin());
@@ -101,7 +126,7 @@ public final class HiveQueryRunner
             FileHiveMetastore metastore = new FileHiveMetastore(hdfsEnvironment, baseDir.toURI().toString(), "test");
             metastore.createDatabase(createDatabaseMetastoreObject(TPCH_SCHEMA));
             metastore.createDatabase(createDatabaseMetastoreObject(TPCH_BUCKETED_SCHEMA));
-            queryRunner.installPlugin(new HivePlugin(HIVE_CATALOG, Optional.of(metastore)));
+            queryRunner.installPlugin(new HivePlugin(HIVE_CATALOG, Optional.of(metastore), extraModules));
 
             Map<String, String> hiveProperties = ImmutableMap.<String, String>builder()
                     .putAll(extraHiveProperties)
@@ -155,6 +180,20 @@ public final class HiveQueryRunner
                         Optional.empty(),
                         role.map(selectedRole -> ImmutableMap.of("hive", selectedRole))
                                 .orElse(ImmutableMap.of())))
+                .setCatalog(HIVE_CATALOG)
+                .setSchema(TPCH_SCHEMA)
+                .build();
+    }
+
+    public static Session createSession(Optional<SelectedRole> role, Map<String, String> extraCredentials)
+    {
+        return testSessionBuilder()
+                .setIdentity(new Identity(
+                        "hive",
+                        Optional.empty(),
+                        role.map(selectedRole -> ImmutableMap.of("hive", selectedRole))
+                                .orElse(ImmutableMap.of()),
+                        ImmutableMap.copyOf(extraCredentials)))
                 .setCatalog(HIVE_CATALOG)
                 .setSchema(TPCH_SCHEMA)
                 .build();
