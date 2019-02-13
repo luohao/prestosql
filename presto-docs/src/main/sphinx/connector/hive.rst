@@ -559,6 +559,10 @@ Procedures
 
     Create an empty partition in the specified table.
 
+* ``system.msck(schema_name, table_name, add, drop)``
+
+    Check partitions in metastore and in file system. Repair the partitions(``add`` and ``drop``) if requested.
+
 Examples
 --------
 
