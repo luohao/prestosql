@@ -21,6 +21,8 @@ import io.prestosql.plugin.hive.metastore.Partition;
 import io.prestosql.plugin.hive.metastore.SemiTransactionalHiveMetastore;
 import io.prestosql.plugin.hive.metastore.Table;
 import io.prestosql.spi.connector.ConnectorSession;
+import io.prestosql.spi.connector.SchemaTableName;
+import io.prestosql.spi.connector.TableNotFoundException;
 import io.prestosql.spi.procedure.Procedure;
 import io.prestosql.spi.procedure.Procedure.Argument;
 import org.apache.hadoop.fs.FileStatus;
@@ -38,17 +40,18 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.collect.ImmutableList.toImmutableList;
+import static com.google.common.collect.Sets.newHashSet;
 import static io.prestosql.plugin.hive.HiveMetadata.PRESTO_QUERY_ID_NAME;
 import static io.prestosql.plugin.hive.HivePartitionManager.extractPartitionValues;
 import static io.prestosql.plugin.hive.HiveSessionProperties.isRespectTableFormat;
-import static io.prestosql.plugin.hive.PartitionStatistics.empty;
 import static io.prestosql.plugin.hive.metastore.StorageFormat.fromHiveStorageFormat;
 import static io.prestosql.spi.block.MethodHandleUtil.methodHandle;
 import static io.prestosql.spi.type.StandardTypes.BOOLEAN;
 import static io.prestosql.spi.type.StandardTypes.VARCHAR;
-import static java.util.Collections.emptyList;
+import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
-import static java.util.stream.Collectors.toList;
 
 public class MsckProcedure
         implements Provider<Procedure>
@@ -92,25 +95,24 @@ public class MsckProcedure
     {
         HdfsEnvironment.HdfsContext context = new HdfsEnvironment.HdfsContext(session, schemaName, tableName);
         SemiTransactionalHiveMetastore metastore = ((HiveMetadata) hiveMetadataFactory.get()).getMetastore();
+        SchemaTableName schemaTableName = new SchemaTableName(schemaName, tableName);
 
-        Table table = metastore.getTable(schemaName, tableName).orElse(null);
-        if (table == null) {
-            return;
-        }
+        Table table = metastore.getTable(schemaName, tableName).orElseThrow(() -> new TableNotFoundException(schemaTableName));
+        checkArgument(!table.getPartitionColumns().isEmpty(), format("Table %s.%s is not partitioned", schemaName, tableName));
 
         Path defaultLocation = new Path(table.getStorage().getLocation());
         try {
             FileSystem fileSystem = hdfsEnvironment.getFileSystem(context, defaultLocation);
 
-            List<String> partitionsInMetastore = metastore.getPartitionNames(schemaName, tableName).orElse(emptyList());
+            List<String> partitionsInMetastore = metastore.getPartitionNames(schemaName, tableName).orElseThrow(() -> new TableNotFoundException(schemaTableName));
             List<String> partitionsInFileSystem = listDirectory(fileSystem, fileSystem.getFileStatus(defaultLocation), table.getPartitionColumns(), table.getPartitionColumns().size()).stream()
                     .map(fileStatus -> defaultLocation.toUri().relativize(fileStatus.getPath().toUri()).getPath())
-                    .collect(toList());
+                    .collect(toImmutableList());
 
             // partitions in metastore but not in file system
-            List<String> partitionsToDrop = difference(partitionsInMetastore, partitionsInFileSystem);
+            Set<String> partitionsToDrop = difference(partitionsInMetastore, partitionsInFileSystem);
             // partitions in file system but not in metastore
-            List<String> partitionsToAdd = difference(partitionsInFileSystem, partitionsInMetastore);
+            Set<String> partitionsToAdd = difference(partitionsInFileSystem, partitionsInMetastore);
 
             if (add) {
                 addPartitions(metastore, session, table, defaultLocation, partitionsToAdd);
@@ -135,7 +137,7 @@ public class MsckProcedure
             return Stream.of(fileSystem.listStatus(current.getPath()))
                     .filter(fileStatus -> validatePath(fileSystem, fileStatus, partitionColumns.get(partitionColumns.size() - depth)))
                     .flatMap(directory -> listDirectory(fileSystem, directory, partitionColumns, depth - 1).stream())
-                    .collect(toList());
+                    .collect(toImmutableList());
         }
         catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -155,11 +157,9 @@ public class MsckProcedure
     }
 
     // calculate relative complement of set b with respect to set a
-    private List<String> difference(List<String> a, List<String> b)
+    private Set<String> difference(List<String> a, List<String> b)
     {
-        Set<String> diff = Sets.newHashSet(a);
-        diff.removeAll(b);
-        return diff.stream().collect(toList());
+        return Sets.difference(newHashSet(a), newHashSet(b));
     }
 
     private void addPartitions(
@@ -167,7 +167,7 @@ public class MsckProcedure
             ConnectorSession session,
             Table table,
             Path location,
-            List<String> partitions)
+            Set<String> partitions)
     {
         partitions.stream()
                 .forEach(name -> metastore.addPartition(
@@ -176,14 +176,14 @@ public class MsckProcedure
                         table.getTableName(),
                         buildPartitionObject(session, table, name, new Path(location, name)),
                         new Path(location, name),
-                        empty()));
+                        PartitionStatistics.empty()));
     }
 
     private void dropPartitions(
             SemiTransactionalHiveMetastore metastore,
             ConnectorSession session,
             Table table,
-            List<String> partitions)
+            Set<String> partitions)
     {
         partitions.stream()
                 .forEach(name -> metastore.dropPartition(
