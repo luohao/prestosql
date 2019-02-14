@@ -29,7 +29,7 @@ import static io.prestodb.tempto.query.QueryExecutor.query;
 import static io.prestosql.tests.TestGroups.HIVE_PARTITIONING;
 import static io.prestosql.tests.TestGroups.SMOKE;
 
-public class TestMsck
+public class TestSyncPartitionMetadata
         extends ProductTest
 {
     private static final String WAREHOUSE_DIRECTORY_PATH = "/user/hive/warehouse/";
@@ -41,25 +41,25 @@ public class TestMsck
     private HdfsDataSourceWriter hdfsDataSourceWriter;
 
     @Test(groups = {HIVE_PARTITIONING, SMOKE})
-    public void testMsckAddPartition()
+    public void testRepairAddPartition()
     {
-        final String tableName = "test_msck_add_partition";
+        final String tableName = "test_sync_partition_metadata_add_partition";
         prepare(hdfsClient, hdfsDataSourceWriter, tableName);
 
-        query("CALL system.msck('default', '" + tableName + "', true, false)");
+        query("CALL system.sync_partition_metadata('default', '" + tableName + "', 'ADD')");
         assertPartitions(tableName, row("a", "1"), row("b", "2"), row("f", "9"));
-        assertSelectFailWith(tableName, "Partition location does not exist: hdfs://hadoop-master:9000/user/hive/warehouse/test_msck_add_partition/x=b/y=2");
-
+        assertThat(() -> query("SELECT payload, x, y FROM " + tableName + " ORDER BY 1, 2, 3 ASC"))
+                .failsWithMessage("Partition location does not exist: hdfs://hadoop-master:9000/user/hive/warehouse/test_sync_partition_metadata_add_partition/x=b/y=2");
         cleanup(tableName);
     }
 
     @Test(groups = {HIVE_PARTITIONING, SMOKE})
-    public void testMsckDropPartition()
+    public void testRepairDropPartition()
     {
-        final String tableName = "test_msck_drop_partition";
+        final String tableName = "test_sync_partition_metadata_drop_partition";
         prepare(hdfsClient, hdfsDataSourceWriter, tableName);
 
-        query("CALL system.msck('default', '" + tableName + "', false, true)");
+        query("CALL system.sync_partition_metadata('default', '" + tableName + "', 'DROP')");
         assertPartitions(tableName, row("a", "1"));
         assertData(tableName, row(1, "a", "1"));
 
@@ -67,14 +67,26 @@ public class TestMsck
     }
 
     @Test(groups = {HIVE_PARTITIONING, SMOKE})
-    public void testMsckAddDropPartition()
+    public void testRepairSyncDropPartition()
     {
-        final String tableName = "test_msck_add_drop_partition";
+        final String tableName = "test_sync_partition_metadata_add_drop_partition";
         prepare(hdfsClient, hdfsDataSourceWriter, tableName);
 
-        query("CALL system.msck('default', '" + tableName + "', true, true)");
+        query("CALL system.sync_partition_metadata('default', '" + tableName + "', 'FULL')");
         assertPartitions(tableName, row("a", "1"), row("f", "9"));
         assertData(tableName, row(1, "a", "1"), row(42, "f", "9"));
+
+        cleanup(tableName);
+    }
+
+    @Test(groups = {HIVE_PARTITIONING, SMOKE})
+    public void testRepairInvalidMode()
+    {
+        final String tableName = "test_repair_invalid_mode";
+        prepare(hdfsClient, hdfsDataSourceWriter, tableName);
+
+        assertThat(() -> query("CALL system.sync_partition_metadata('default', '" + tableName + "', 'INVALID')"))
+                .failsWithMessageMatching("java.sql.SQLException: Query failed (.*): Invalid partition metadata sync mode: INVALID");
 
         cleanup(tableName);
     }
@@ -112,12 +124,6 @@ public class TestMsck
     {
         QueryResult partitionListResult = query("SELECT * FROM \"" + tableName + "$partitions\"");
         assertThat(partitionListResult).containsExactly(rows);
-    }
-
-    private static void assertSelectFailWith(String tableName, String errorMessage)
-    {
-        assertThat(() -> query("SELECT payload, x, y FROM " + tableName + " ORDER BY 1, 2, 3 ASC"))
-                .failsWithMessage(errorMessage);
     }
 
     private static void assertData(String tableName, QueryAssert.Row... rows)

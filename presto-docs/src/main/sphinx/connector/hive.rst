@@ -559,9 +559,13 @@ Procedures
 
     Create an empty partition in the specified table.
 
-* ``system.msck(schema_name, table_name, add, drop)``
+* ``system.sync_partition_metadata(schema_name, table_name, mode)``
 
-    Check partitions in metastore and in file system. Repair the partitions(``add`` and ``drop``) if requested.
+    Check and repair partitions in metastore. There are three modes available:
+
+    * ``ADD`` : add any partitions that exist on the file system but not in the metastore.
+    * ``DROP``: drop any partitions that exist in the metastore but not on the file system.
+    * ``FULL``: perform both ``ADD`` and ``DROP``.
 
 Examples
 --------

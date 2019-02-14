@@ -48,28 +48,31 @@ import static io.prestosql.plugin.hive.HivePartitionManager.extractPartitionValu
 import static io.prestosql.plugin.hive.HiveSessionProperties.isRespectTableFormat;
 import static io.prestosql.plugin.hive.metastore.StorageFormat.fromHiveStorageFormat;
 import static io.prestosql.spi.block.MethodHandleUtil.methodHandle;
-import static io.prestosql.spi.type.StandardTypes.BOOLEAN;
 import static io.prestosql.spi.type.StandardTypes.VARCHAR;
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 
-public class MsckProcedure
+public class SyncPartitionMetadataProcedure
         implements Provider<Procedure>
 {
-    private static final MethodHandle MSCK = methodHandle(
-            MsckProcedure.class,
-            "msck",
+    public enum SyncMode
+    {
+        ADD, DROP, FULL
+    }
+
+    private static final MethodHandle SYNC_PARTITION_METADATA = methodHandle(
+            SyncPartitionMetadataProcedure.class,
+            "sync_partition_metadata",
             ConnectorSession.class,
             String.class,
             String.class,
-            Boolean.class,
-            Boolean.class);
+            String.class);
 
     private final Supplier<TransactionalMetadata> hiveMetadataFactory;
     private final HdfsEnvironment hdfsEnvironment;
 
     @Inject
-    public MsckProcedure(
+    public SyncPartitionMetadataProcedure(
             Supplier<TransactionalMetadata> hiveMetadataFactory,
             HdfsEnvironment hdfsEnvironment)
     {
@@ -82,17 +85,17 @@ public class MsckProcedure
     {
         return new Procedure(
                 "system",
-                "msck",
+                "sync_partition_metadata",
                 ImmutableList.of(
                         new Argument("schema_name", VARCHAR),
                         new Argument("table_name", VARCHAR),
-                        new Argument("add", BOOLEAN),
-                        new Argument("drop", BOOLEAN)),
-                MSCK.bindTo(this));
+                        new Argument("mode", VARCHAR)),
+                SYNC_PARTITION_METADATA.bindTo(this));
     }
 
-    public void msck(ConnectorSession session, String schemaName, String tableName, Boolean add, Boolean drop)
+    public void sync_partition_metadata(ConnectorSession session, String schemaName, String tableName, String mode)
     {
+        SyncMode syncMode = toSyncMode(mode);
         HdfsEnvironment.HdfsContext context = new HdfsEnvironment.HdfsContext(session, schemaName, tableName);
         SemiTransactionalHiveMetastore metastore = ((HiveMetadata) hiveMetadataFactory.get()).getMetastore();
         SchemaTableName schemaTableName = new SchemaTableName(schemaName, tableName);
@@ -114,10 +117,10 @@ public class MsckProcedure
             // partitions in file system but not in metastore
             Set<String> partitionsToAdd = difference(partitionsInFileSystem, partitionsInMetastore);
 
-            if (add) {
+            if (syncMode == SyncMode.ADD || syncMode == SyncMode.FULL) {
                 addPartitions(metastore, session, table, defaultLocation, partitionsToAdd);
             }
-            if (drop) {
+            if (syncMode == SyncMode.DROP || syncMode == SyncMode.FULL) {
                 dropPartitions(metastore, session, table, partitionsToDrop);
             }
             metastore.commit();
@@ -169,14 +172,13 @@ public class MsckProcedure
             Path location,
             Set<String> partitions)
     {
-        partitions.stream()
-                .forEach(name -> metastore.addPartition(
-                        session,
-                        table.getDatabaseName(),
-                        table.getTableName(),
-                        buildPartitionObject(session, table, name, new Path(location, name)),
-                        new Path(location, name),
-                        PartitionStatistics.empty()));
+        partitions.forEach(name -> metastore.addPartition(
+                session,
+                table.getDatabaseName(),
+                table.getTableName(),
+                buildPartitionObject(session, table, name, new Path(location, name)),
+                new Path(location, name),
+                PartitionStatistics.empty()));
     }
 
     private void dropPartitions(
@@ -185,12 +187,11 @@ public class MsckProcedure
             Table table,
             Set<String> partitions)
     {
-        partitions.stream()
-                .forEach(name -> metastore.dropPartition(
-                        session,
-                        table.getDatabaseName(),
-                        table.getTableName(),
-                        extractPartitionValues(name)));
+        partitions.forEach(name -> metastore.dropPartition(
+                session,
+                table.getDatabaseName(),
+                table.getTableName(),
+                extractPartitionValues(name)));
     }
 
     private Partition buildPartitionObject(ConnectorSession session, Table table, String partitionName, Path targetPath)
@@ -209,5 +210,15 @@ public class MsckProcedure
                         .setBucketProperty(table.getStorage().getBucketProperty())
                         .setSerdeParameters(table.getStorage().getSerdeParameters()))
                 .build();
+    }
+
+    SyncMode toSyncMode(String mode)
+    {
+        try {
+            return SyncMode.valueOf(mode);
+        }
+        catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Invalid partition metadata sync mode: " + mode);
+        }
     }
 }
