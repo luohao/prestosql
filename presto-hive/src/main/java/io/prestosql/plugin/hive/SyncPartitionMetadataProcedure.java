@@ -124,7 +124,7 @@ public class SyncPartitionMetadataProcedure
             throw new PrestoException(HIVE_FILESYSTEM_ERROR, e);
         }
 
-        syncPartitions(partitionsToAdd, partitionsToDrop, syncMode, metastore, session, table, defaultLocation);
+        syncPartitions(partitionsToAdd, partitionsToDrop, syncMode, metastore, session, table);
     }
 
     private static List<FileStatus> listDirectory(FileSystem fileSystem, FileStatus current, List<Column> partitionColumns, int depth)
@@ -168,11 +168,10 @@ public class SyncPartitionMetadataProcedure
             SyncMode syncMode,
             SemiTransactionalHiveMetastore metastore,
             ConnectorSession session,
-            Table table,
-            Path defaultLocation)
+            Table table)
     {
         if (syncMode == SyncMode.ADD || syncMode == SyncMode.FULL) {
-            addPartitions(metastore, session, table, defaultLocation, partitionsToAdd);
+            addPartitions(metastore, session, table, partitionsToAdd);
         }
         if (syncMode == SyncMode.DROP || syncMode == SyncMode.FULL) {
             dropPartitions(metastore, session, table, partitionsToDrop);
@@ -184,7 +183,6 @@ public class SyncPartitionMetadataProcedure
             SemiTransactionalHiveMetastore metastore,
             ConnectorSession session,
             Table table,
-            Path location,
             Set<String> partitions)
     {
         for (String name : partitions) {
@@ -192,8 +190,8 @@ public class SyncPartitionMetadataProcedure
                     session,
                     table.getDatabaseName(),
                     table.getTableName(),
-                    buildPartitionObject(session, table, name, new Path(location, name)),
-                    new Path(location, name),
+                    buildPartitionObject(session, table, name),
+                    new Path(table.getStorage().getLocation(), name),
                     PartitionStatistics.empty());
         }
     }
@@ -213,7 +211,7 @@ public class SyncPartitionMetadataProcedure
         }
     }
 
-    private static Partition buildPartitionObject(ConnectorSession session, Table table, String partitionName, Path targetPath)
+    private static Partition buildPartitionObject(ConnectorSession session, Table table, String partitionName)
     {
         return Partition.builder()
                 .setDatabaseName(table.getDatabaseName())
@@ -221,7 +219,11 @@ public class SyncPartitionMetadataProcedure
                 .setColumns(table.getDataColumns())
                 .setValues(extractPartitionValues(partitionName))
                 .setParameters(ImmutableMap.of(PRESTO_QUERY_ID_NAME, session.getQueryId()))
-                .withStorage(storage -> storage.setLocation(targetPath.toString()))
+                .withStorage(storage -> storage
+                        .setStorageFormat(table.getStorage().getStorageFormat())
+                        .setLocation(new Path(table.getStorage().getLocation(), partitionName).toString())
+                        .setBucketProperty(table.getStorage().getBucketProperty())
+                        .setSerdeParameters(table.getStorage().getSerdeParameters()))
                 .build();
     }
 
@@ -231,7 +233,7 @@ public class SyncPartitionMetadataProcedure
             return SyncMode.valueOf(mode.toUpperCase(ENGLISH));
         }
         catch (IllegalArgumentException e) {
-            throw new PrestoException(INVALID_PROCEDURE_ARGUMENT, e);
+            throw new PrestoException(INVALID_PROCEDURE_ARGUMENT, "Invalid partition metadata sync mode: " + mode);
         }
     }
 }
