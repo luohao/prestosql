@@ -561,7 +561,7 @@ Procedures
 
 * ``system.sync_partition_metadata(schema_name, table_name, mode)``
 
-    Check and repair partitions in metastore. There are three modes available:
+    Check and update partitions list in Metastore. There are three modes available:
 
     * ``ADD`` : add any partitions that exist on the file system but not in the metastore.
     * ``DROP``: drop any partitions that exist in the metastore but not on the file system.

@@ -102,32 +102,27 @@ public class SyncPartitionMetadataProcedure
 
         Table table = metastore.getTable(schemaName, tableName).orElseThrow(() -> new TableNotFoundException(schemaTableName));
         checkArgument(!table.getPartitionColumns().isEmpty(), format("Table %s.%s is not partitioned", schemaName, tableName));
-
         Path defaultLocation = new Path(table.getStorage().getLocation());
-        try {
-            FileSystem fileSystem = hdfsEnvironment.getFileSystem(context, defaultLocation);
 
+        Set<String> partitionsToAdd;
+        Set<String> partitionsToDrop;
+
+        try (FileSystem fileSystem = hdfsEnvironment.getFileSystem(context, defaultLocation)) {
             List<String> partitionsInMetastore = metastore.getPartitionNames(schemaName, tableName).orElseThrow(() -> new TableNotFoundException(schemaTableName));
             List<String> partitionsInFileSystem = listDirectory(fileSystem, fileSystem.getFileStatus(defaultLocation), table.getPartitionColumns(), table.getPartitionColumns().size()).stream()
                     .map(fileStatus -> defaultLocation.toUri().relativize(fileStatus.getPath().toUri()).getPath())
                     .collect(toImmutableList());
 
-            // partitions in metastore but not in file system
-            Set<String> partitionsToDrop = difference(partitionsInMetastore, partitionsInFileSystem);
             // partitions in file system but not in metastore
-            Set<String> partitionsToAdd = difference(partitionsInFileSystem, partitionsInMetastore);
-
-            if (syncMode == SyncMode.ADD || syncMode == SyncMode.FULL) {
-                addPartitions(metastore, session, table, defaultLocation, partitionsToAdd);
-            }
-            if (syncMode == SyncMode.DROP || syncMode == SyncMode.FULL) {
-                dropPartitions(metastore, session, table, partitionsToDrop);
-            }
-            metastore.commit();
+            partitionsToAdd = difference(partitionsInFileSystem, partitionsInMetastore);
+            // partitions in metastore but not in file system
+            partitionsToDrop = difference(partitionsInMetastore, partitionsInFileSystem);
         }
         catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+
+        syncPartitions(partitionsToAdd, partitionsToDrop, syncMode, metastore, session, table, defaultLocation);
     }
 
     private List<FileStatus> listDirectory(FileSystem fileSystem, FileStatus current, List<Column> partitionColumns, int depth)
@@ -163,6 +158,24 @@ public class SyncPartitionMetadataProcedure
     private Set<String> difference(List<String> a, List<String> b)
     {
         return Sets.difference(newHashSet(a), newHashSet(b));
+    }
+
+    private void syncPartitions(
+            Set<String> partitionsToAdd,
+            Set<String> partitionsToDrop,
+            SyncMode syncMode,
+            SemiTransactionalHiveMetastore metastore,
+            ConnectorSession session,
+            Table table,
+            Path defaultLocation)
+    {
+        if (syncMode == SyncMode.ADD || syncMode == SyncMode.FULL) {
+            addPartitions(metastore, session, table, defaultLocation, partitionsToAdd);
+        }
+        if (syncMode == SyncMode.DROP || syncMode == SyncMode.FULL) {
+            dropPartitions(metastore, session, table, partitionsToDrop);
+        }
+        metastore.commit();
     }
 
     private void addPartitions(

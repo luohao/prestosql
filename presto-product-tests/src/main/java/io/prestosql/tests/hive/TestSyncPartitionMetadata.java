@@ -41,7 +41,7 @@ public class TestSyncPartitionMetadata
     private HdfsDataSourceWriter hdfsDataSourceWriter;
 
     @Test(groups = {HIVE_PARTITIONING, SMOKE})
-    public void testRepairAddPartition()
+    public void testAddPartition()
     {
         final String tableName = "test_sync_partition_metadata_add_partition";
         prepare(hdfsClient, hdfsDataSourceWriter, tableName);
@@ -49,12 +49,12 @@ public class TestSyncPartitionMetadata
         query("CALL system.sync_partition_metadata('default', '" + tableName + "', 'ADD')");
         assertPartitions(tableName, row("a", "1"), row("b", "2"), row("f", "9"));
         assertThat(() -> query("SELECT payload, x, y FROM " + tableName + " ORDER BY 1, 2, 3 ASC"))
-                .failsWithMessage("Partition location does not exist: hdfs://hadoop-master:9000/user/hive/warehouse/test_sync_partition_metadata_add_partition/x=b/y=2");
+                .failsWithMessage("Partition location does not exist: hdfs://hadoop-master:9000/user/hive/warehouse/" + tableName + "/x=b/y=2");
         cleanup(tableName);
     }
 
     @Test(groups = {HIVE_PARTITIONING, SMOKE})
-    public void testRepairDropPartition()
+    public void testDropPartition()
     {
         final String tableName = "test_sync_partition_metadata_drop_partition";
         prepare(hdfsClient, hdfsDataSourceWriter, tableName);
@@ -67,7 +67,7 @@ public class TestSyncPartitionMetadata
     }
 
     @Test(groups = {HIVE_PARTITIONING, SMOKE})
-    public void testRepairSyncDropPartition()
+    public void testFullSyncPartition()
     {
         final String tableName = "test_sync_partition_metadata_add_drop_partition";
         prepare(hdfsClient, hdfsDataSourceWriter, tableName);
@@ -80,7 +80,7 @@ public class TestSyncPartitionMetadata
     }
 
     @Test(groups = {HIVE_PARTITIONING, SMOKE})
-    public void testRepairInvalidMode()
+    public void testInvalidSyncMode()
     {
         final String tableName = "test_repair_invalid_mode";
         prepare(hdfsClient, hdfsDataSourceWriter, tableName);
