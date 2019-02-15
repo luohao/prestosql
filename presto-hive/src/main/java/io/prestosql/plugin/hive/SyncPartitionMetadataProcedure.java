@@ -20,6 +20,7 @@ import io.prestosql.plugin.hive.metastore.Column;
 import io.prestosql.plugin.hive.metastore.Partition;
 import io.prestosql.plugin.hive.metastore.SemiTransactionalHiveMetastore;
 import io.prestosql.plugin.hive.metastore.Table;
+import io.prestosql.spi.PrestoException;
 import io.prestosql.spi.connector.ConnectorSession;
 import io.prestosql.spi.connector.SchemaTableName;
 import io.prestosql.spi.connector.TableNotFoundException;
@@ -35,6 +36,7 @@ import javax.inject.Provider;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.invoke.MethodHandle;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -42,14 +44,14 @@ import java.util.stream.Stream;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.ImmutableList.toImmutableList;
-import static com.google.common.collect.Sets.newHashSet;
+import static io.prestosql.plugin.hive.HiveErrorCode.HIVE_FILESYSTEM_ERROR;
 import static io.prestosql.plugin.hive.HiveMetadata.PRESTO_QUERY_ID_NAME;
 import static io.prestosql.plugin.hive.HivePartitionManager.extractPartitionValues;
-import static io.prestosql.plugin.hive.HiveSessionProperties.isRespectTableFormat;
-import static io.prestosql.plugin.hive.metastore.StorageFormat.fromHiveStorageFormat;
+import static io.prestosql.spi.StandardErrorCode.INVALID_PROCEDURE_ARGUMENT;
 import static io.prestosql.spi.block.MethodHandleUtil.methodHandle;
 import static io.prestosql.spi.type.StandardTypes.VARCHAR;
 import static java.lang.String.format;
+import static java.util.Locale.ENGLISH;
 import static java.util.Objects.requireNonNull;
 
 public class SyncPartitionMetadataProcedure
@@ -101,7 +103,9 @@ public class SyncPartitionMetadataProcedure
         SchemaTableName schemaTableName = new SchemaTableName(schemaName, tableName);
 
         Table table = metastore.getTable(schemaName, tableName).orElseThrow(() -> new TableNotFoundException(schemaTableName));
-        checkArgument(!table.getPartitionColumns().isEmpty(), format("Table %s.%s is not partitioned", schemaName, tableName));
+        if (table.getPartitionColumns().isEmpty()) {
+            throw new PrestoException(INVALID_PROCEDURE_ARGUMENT, format("Table is not partitioned: %s.%s", schemaName, tableName));
+        }
         Path defaultLocation = new Path(table.getStorage().getLocation());
 
         Set<String> partitionsToAdd;
@@ -119,13 +123,13 @@ public class SyncPartitionMetadataProcedure
             partitionsToDrop = difference(partitionsInMetastore, partitionsInFileSystem);
         }
         catch (IOException e) {
-            throw new UncheckedIOException(e);
+            throw new PrestoException(HIVE_FILESYSTEM_ERROR, "Error listing partitions in file system: ", e);
         }
 
         syncPartitions(partitionsToAdd, partitionsToDrop, syncMode, metastore, session, table, defaultLocation);
     }
 
-    private List<FileStatus> listDirectory(FileSystem fileSystem, FileStatus current, List<Column> partitionColumns, int depth)
+    private static List<FileStatus> listDirectory(FileSystem fileSystem, FileStatus current, List<Column> partitionColumns, int depth)
     {
         if (depth == 0) {
             return ImmutableList.of(current);
@@ -133,7 +137,7 @@ public class SyncPartitionMetadataProcedure
 
         try {
             return Stream.of(fileSystem.listStatus(current.getPath()))
-                    .filter(fileStatus -> validatePath(fileSystem, fileStatus, partitionColumns.get(partitionColumns.size() - depth)))
+                    .filter(fileStatus -> isValidPath(fileSystem, fileStatus, partitionColumns.get(partitionColumns.size() - depth)))
                     .flatMap(directory -> listDirectory(fileSystem, directory, partitionColumns, depth - 1).stream())
                     .collect(toImmutableList());
         }
@@ -142,7 +146,7 @@ public class SyncPartitionMetadataProcedure
         }
     }
 
-    private boolean validatePath(FileSystem fileSystem, FileStatus file, Column column)
+    private static boolean isValidPath(FileSystem fileSystem, FileStatus file, Column column)
     {
         try {
             Path path = file.getPath();
@@ -155,9 +159,9 @@ public class SyncPartitionMetadataProcedure
     }
 
     // calculate relative complement of set b with respect to set a
-    private Set<String> difference(List<String> a, List<String> b)
+    private static Set<String> difference(List<String> a, List<String> b)
     {
-        return Sets.difference(newHashSet(a), newHashSet(b));
+        return Sets.difference(new HashSet<>(a), new HashSet<>(b));
     }
 
     private void syncPartitions(
@@ -178,36 +182,40 @@ public class SyncPartitionMetadataProcedure
         metastore.commit();
     }
 
-    private void addPartitions(
+    private static void addPartitions(
             SemiTransactionalHiveMetastore metastore,
             ConnectorSession session,
             Table table,
             Path location,
             Set<String> partitions)
     {
-        partitions.forEach(name -> metastore.addPartition(
-                session,
-                table.getDatabaseName(),
-                table.getTableName(),
-                buildPartitionObject(session, table, name, new Path(location, name)),
-                new Path(location, name),
-                PartitionStatistics.empty()));
+        for (String name : partitions) {
+            metastore.addPartition(
+                    session,
+                    table.getDatabaseName(),
+                    table.getTableName(),
+                    buildPartitionObject(session, table, name, new Path(location, name)),
+                    new Path(location, name),
+                    PartitionStatistics.empty());
+        }
     }
 
-    private void dropPartitions(
+    private static void dropPartitions(
             SemiTransactionalHiveMetastore metastore,
             ConnectorSession session,
             Table table,
             Set<String> partitions)
     {
-        partitions.forEach(name -> metastore.dropPartition(
-                session,
-                table.getDatabaseName(),
-                table.getTableName(),
-                extractPartitionValues(name)));
+        for (String name : partitions) {
+            metastore.dropPartition(
+                    session,
+                    table.getDatabaseName(),
+                    table.getTableName(),
+                    extractPartitionValues(name));
+        }
     }
 
-    private Partition buildPartitionObject(ConnectorSession session, Table table, String partitionName, Path targetPath)
+    private static Partition buildPartitionObject(ConnectorSession session, Table table, String partitionName, Path targetPath)
     {
         return Partition.builder()
                 .setDatabaseName(table.getDatabaseName())
@@ -215,23 +223,17 @@ public class SyncPartitionMetadataProcedure
                 .setColumns(table.getDataColumns())
                 .setValues(extractPartitionValues(partitionName))
                 .setParameters(ImmutableMap.of(PRESTO_QUERY_ID_NAME, session.getQueryId()))
-                .withStorage(storage -> storage
-                        .setStorageFormat(isRespectTableFormat(session) ?
-                                table.getStorage().getStorageFormat() :
-                                fromHiveStorageFormat(HiveSessionProperties.getHiveStorageFormat(session)))
-                        .setLocation(targetPath.toString())
-                        .setBucketProperty(table.getStorage().getBucketProperty())
-                        .setSerdeParameters(table.getStorage().getSerdeParameters()))
+                .withStorage(storage -> storage.setLocation(targetPath.toString()))
                 .build();
     }
 
-    SyncMode toSyncMode(String mode)
+    private static SyncMode toSyncMode(String mode)
     {
         try {
-            return SyncMode.valueOf(mode);
+            return SyncMode.valueOf(mode.toUpperCase(ENGLISH));
         }
         catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Invalid partition metadata sync mode: " + mode);
+            throw new PrestoException(INVALID_PROCEDURE_ARGUMENT, e);
         }
     }
 }
