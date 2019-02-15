@@ -121,7 +121,7 @@ public class SyncPartitionMetadataProcedure
             partitionsToDrop = difference(partitionsInMetastore, partitionsInFileSystem);
         }
         catch (IOException e) {
-            throw new PrestoException(HIVE_FILESYSTEM_ERROR, "Error listing partitions in file system: ", e);
+            throw new PrestoException(HIVE_FILESYSTEM_ERROR, e);
         }
 
         syncPartitions(partitionsToAdd, partitionsToDrop, syncMode, metastore, session, table, defaultLocation);
