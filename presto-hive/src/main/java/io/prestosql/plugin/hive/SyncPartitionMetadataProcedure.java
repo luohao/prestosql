@@ -34,7 +34,6 @@ import javax.inject.Inject;
 import javax.inject.Provider;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.lang.invoke.MethodHandle;
 import java.util.HashSet;
 import java.util.List;
@@ -42,7 +41,6 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
-import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static io.prestosql.plugin.hive.HiveErrorCode.HIVE_FILESYSTEM_ERROR;
 import static io.prestosql.plugin.hive.HiveMetadata.PRESTO_QUERY_ID_NAME;
@@ -64,7 +62,7 @@ public class SyncPartitionMetadataProcedure
 
     private static final MethodHandle SYNC_PARTITION_METADATA = methodHandle(
             SyncPartitionMetadataProcedure.class,
-            "sync_partition_metadata",
+            "syncPartitionMetadata",
             ConnectorSession.class,
             String.class,
             String.class,
@@ -95,7 +93,7 @@ public class SyncPartitionMetadataProcedure
                 SYNC_PARTITION_METADATA.bindTo(this));
     }
 
-    public void sync_partition_metadata(ConnectorSession session, String schemaName, String tableName, String mode)
+    public void syncPartitionMetadata(ConnectorSession session, String schemaName, String tableName, String mode)
     {
         SyncMode syncMode = toSyncMode(mode);
         HdfsEnvironment.HdfsContext context = new HdfsEnvironment.HdfsContext(session, schemaName, tableName);
@@ -142,7 +140,7 @@ public class SyncPartitionMetadataProcedure
                     .collect(toImmutableList());
         }
         catch (IOException e) {
-            throw new UncheckedIOException(e);
+            throw new PrestoException(HIVE_FILESYSTEM_ERROR, e);
         }
     }
 
@@ -154,7 +152,7 @@ public class SyncPartitionMetadataProcedure
             return fileSystem.isDirectory(path) && path.getName().startsWith(prefix);
         }
         catch (IOException e) {
-            throw new UncheckedIOException(e);
+            throw new PrestoException(HIVE_FILESYSTEM_ERROR, e);
         }
     }
 
@@ -164,7 +162,7 @@ public class SyncPartitionMetadataProcedure
         return Sets.difference(new HashSet<>(a), new HashSet<>(b));
     }
 
-    private void syncPartitions(
+    private static void syncPartitions(
             Set<String> partitionsToAdd,
             Set<String> partitionsToDrop,
             SyncMode syncMode,
