@@ -119,12 +119,12 @@ public class SyncPartitionMetadataProcedure
             partitionsToAdd = difference(partitionsInFileSystem, partitionsInMetastore);
             // partitions in metastore but not in file system
             partitionsToDrop = difference(partitionsInMetastore, partitionsInFileSystem);
+
+            syncPartitions(partitionsToAdd, partitionsToDrop, syncMode, metastore, session, table);
         }
         catch (IOException e) {
             throw new PrestoException(HIVE_FILESYSTEM_ERROR, e);
         }
-
-        syncPartitions(partitionsToAdd, partitionsToDrop, syncMode, metastore, session, table);
     }
 
     private static List<FileStatus> listDirectory(FileSystem fileSystem, FileStatus current, List<Column> partitionColumns, int depth)
