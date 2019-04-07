@@ -19,6 +19,8 @@ import javax.validation.constraints.NotNull;
 
 import java.io.File;
 
+import static io.prestosql.server.security.KerberosConfig.NameType.HOSTBASED_SERVICE;
+
 public class KerberosConfig
 {
     public static final String HTTP_SERVER_AUTHENTICATION_KRB5_KEYTAB = "http.server.authentication.krb5.keytab";
@@ -27,6 +29,7 @@ public class KerberosConfig
     private String serviceName;
     private File keytab;
     private String principalHostname;
+    private NameType nameType = HOSTBASED_SERVICE;
 
     @NotNull
     public File getKerberosConfig()
@@ -75,6 +78,25 @@ public class KerberosConfig
     public KerberosConfig setPrincipalHostname(String principalHostname)
     {
         this.principalHostname = principalHostname;
+        return this;
+    }
+
+    public enum NameType
+    {
+        HOSTBASED_SERVICE,
+        USER_NAME
+    }
+
+    @NotNull
+    public NameType getNameType()
+    {
+        return nameType;
+    }
+
+    @Config("http.server.authentication.krb5.name-type")
+    public KerberosConfig setNameType(String nameType)
+    {
+        this.nameType = NameType.valueOf(nameType);
         return this;
     }
 }
