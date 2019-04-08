@@ -1,0 +1,89 @@
+import os
+
+class Profile(Struct):
+  name                = Required(String)
+  role                = Default(String, os.environ['USER'])
+  contact             = Default(String, '{}@twitter.com'.format(os.environ['USER']))
+  environment         = Required(String)
+  pkg_version         = Default(String, 'latest')
+
+# copy hello_world.py locally
+install_package = Packer.install('presto-gateway', version='{{profile.pkg_version}}')
+
+start_gateway = Process(
+    name = 'start_gateway' ,
+    cmdline = '''
+    #!/bin/bash
+
+    # setup config/log files
+    mkdir -p etc && touch "etc/config.properties" && touch "etc/log.properties";
+
+    # install server config
+
+    echo "node.environment=test
+    http-server.http.port={{thermos.ports[http]}}
+    " >> etc/config.properties
+
+    echo "-ea
+    -XX:+UseG1GC
+    -XX:G1HeapRegionSize=32M
+    -XX:+UseGCOverheadLimit
+    -XX:+ExplicitGCInvokesConcurrent
+    -Xmx3G
+    -Dconfig=etc/config.properties
+    " >> etc/jvm.config
+
+    # start gateway
+    export JAVA_HOME=/usr/lib/jvm/java-1.8.0-twitter/;
+    export PATH=$JAVA_HOME/bin:$PATH;
+    GATEWAY_DIR=`ls -d presto-gateway*`;
+    rm -rf ${GATEWAY_DIR}/etc && mv etc ${GATEWAY_DIR}/;
+    ./${GATEWAY_DIR}/bin/launcher start
+    '''
+)
+
+gateway_watcher = Process(
+    name = 'gateway_watcher' ,
+    cmdline = '''
+    GATEWAY_DIR=`ls -d presto-gateway*`;
+    trap "./${GATEWAY_DIR}/bin/launcher stop" SIGINT SIGTERM EXIT
+    while true
+    do
+      sleep 1
+      ./${GATEWAY_DIR}/bin/launcher status
+      ret=$?
+      if [ $ret -ne 0 ]; then
+        exit $ret
+      fi
+    done
+    '''
+)
+
+# describe the task
+presto_gateway = SequentialTask(
+  processes = [install_package, start_gateway, gateway_watcher],
+  resources = Resources(cpu = 4, ram = 4*GB, disk=1024*MB)
+)
+
+# describe the service
+presto_gateway_service = Service(
+  contact='{{profile.contact}}',
+  cluster='{{cluster}}',
+  environment='{{profile.environment}}',
+  role='{{profile.role}}',
+  name='{{profile.name}}',
+  task=presto_gateway,
+  update_config=UpdateConfig(),
+  announce=Announcer()
+)
+
+# you may eventually have a staging & prod profile as well
+Gateway = Profile(
+  name = 'presto-gateway',
+  environment = 'devel',
+  pkg_version = 'latest'
+)
+
+jobs = [
+  presto_gateway_service(cluster='smf1', instances=1).bind(profile=Gateway),
+]
